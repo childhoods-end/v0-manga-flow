@@ -31,23 +31,29 @@ export async function POST(request: NextRequest) {
 
     // For now, skip user authentication and use a demo user
     // In production, you should properly authenticate users
-    const demoUserId = 'demo-user-id'
+    // Use a valid UUID format for demo user
+    const demoUserId = '00000000-0000-0000-0000-000000000000'
 
     // Check if profile exists, if not create one
-    const { data: profile } = await supabaseAdmin
+    const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('*')
       .eq('id', demoUserId)
-      .single()
+      .maybeSingle()
 
     if (!profile) {
       // Create demo profile
-      await supabaseAdmin.from('profiles').insert({
+      const { error: insertError } = await supabaseAdmin.from('profiles').insert({
         id: demoUserId,
         email: 'demo@example.com',
         role: 'user',
         plan: 'free',
       })
+
+      if (insertError) {
+        console.error('Failed to create demo profile:', insertError)
+        // Continue anyway, the profile might already exist
+      }
     }
 
     // Create project
