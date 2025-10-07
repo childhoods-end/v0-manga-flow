@@ -82,14 +82,30 @@ export default function TranslatePage() {
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Upload failed')
+        let errorMessage = 'Upload failed'
+        try {
+          const error = await response.json()
+          errorMessage = error.error || errorMessage
+        } catch (e) {
+          errorMessage = `Upload failed with status ${response.status}`
+        }
+        throw new Error(errorMessage)
       }
 
-      const result = await response.json()
+      const responseText = await response.text()
+      if (!responseText) {
+        throw new Error('Empty response from server')
+      }
+
+      const result = JSON.parse(responseText)
 
       // Navigate to project page
-      router.push(`/projects/${result.projectId}`)
+      if (result.projectId) {
+        router.push(`/projects/${result.projectId}`)
+      } else {
+        alert('Upload successful! Translation processing has started.')
+        router.push('/dashboard')
+      }
     } catch (error) {
       console.error('Upload failed:', error)
       alert(error instanceof Error ? error.message : 'Upload failed. Please try again.')
