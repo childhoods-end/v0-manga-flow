@@ -3,8 +3,63 @@
 import { Button } from "@/components/ui/button"
 import { Upload, Sparkles, ArrowRight } from "lucide-react"
 import { Card } from "@/components/ui/card"
+import { useRouter } from "next/navigation"
+import { useRef, useState } from "react"
 
 export function HeroSection() {
+  const router = useRouter()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isDragging, setIsDragging] = useState(false)
+
+  const handleStartTranslating = () => {
+    router.push("/projects/new")
+  }
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files
+    if (files && files.length > 0) {
+      handleFiles(files)
+    }
+  }
+
+  const handleFiles = (files: FileList) => {
+    // Store files in sessionStorage for the new project page
+    const fileArray = Array.from(files)
+    const fileData = fileArray.map(file => ({
+      name: file.name,
+      size: file.size,
+      type: file.type
+    }))
+    sessionStorage.setItem('pendingUpload', JSON.stringify(fileData))
+
+    // Navigate to new project page
+    router.push("/projects/new")
+  }
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+
+    const files = e.dataTransfer.files
+    if (files && files.length > 0) {
+      handleFiles(files)
+    }
+  }
+
   return (
     <section className="relative overflow-hidden pt-32 pb-20 sm:pt-40 sm:pb-28">
       {/* Background gradient effects */}
@@ -37,6 +92,7 @@ export function HeroSection() {
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <Button
               size="lg"
+              onClick={handleStartTranslating}
               className="group h-12 gap-2 bg-primary px-8 text-base font-semibold text-primary-foreground hover:bg-primary/90"
             >
               Start translating free
@@ -59,7 +115,25 @@ export function HeroSection() {
             </div>
             <div className="p-8 sm:p-12">
               <div className="flex flex-col items-center gap-6">
-                <div className="flex h-32 w-full items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/30 transition-colors hover:border-primary/50 hover:bg-muted/50">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,application/pdf"
+                  multiple
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+                <div
+                  onClick={handleUploadClick}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={`flex h-32 w-full items-center justify-center rounded-lg border-2 border-dashed transition-colors cursor-pointer ${
+                    isDragging
+                      ? "border-primary bg-primary/10"
+                      : "border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50"
+                  }`}
+                >
                   <div className="text-center">
                     <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
                     <p className="mt-2 text-sm font-medium text-muted-foreground">
@@ -68,7 +142,10 @@ export function HeroSection() {
                     <p className="mt-1 text-xs text-muted-foreground">Supports JPG, PNG, PDF up to 10MB</p>
                   </div>
                 </div>
-                <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90 sm:w-auto sm:px-12">
+                <Button
+                  onClick={handleUploadClick}
+                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90 sm:w-auto sm:px-12"
+                >
                   Upload & Translate
                 </Button>
               </div>
