@@ -108,7 +108,12 @@ export default function TranslatePage() {
       }
     } catch (error) {
       console.error('Upload failed:', error)
-      alert(error instanceof Error ? error.message : 'Upload failed. Please try again.')
+      const errorMsg = error instanceof Error ? error.message : 'Upload failed. Please try again.'
+
+      // Show detailed error message
+      const detailedMsg = `Upload failed: ${errorMsg}\n\nPlease check:\n1. Supabase is configured in .env.local\n2. Database tables are created\n3. Check browser console (F12) for more details`
+
+      alert(detailedMsg)
     } finally {
       setIsUploading(false)
     }
