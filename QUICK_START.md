@@ -98,45 +98,81 @@ CREATE TABLE jobs (
 4. 点击 **"Run"** 按钮
 5. 看到成功提示即可
 
-### 2. 配置 Claude API（必需）
+### 2. 配置翻译 API（必需，二选一）
 
-#### 2.1 注册 Anthropic
+#### 🔵 选项 A：OpenAI（推荐，更稳定）
+
+1. 访问 https://platform.openai.com
+2. 注册/登录账号（可以用 Google 账号登录）
+3. 点击右上角头像 → **"View API keys"**
+   或直接访问 https://platform.openai.com/api-keys
+4. 点击 **"Create new secret key"**
+5. 输入名称：`mangaflow`
+6. **立即复制密钥**（只显示一次！）
+   - 格式：`sk-proj-xxxxx...` 或 `sk-xxxxx...`
+7. 充值（必需）：
+   - 点击左侧 **"Settings"** → **"Billing"**
+   - 点击 **"Add payment method"**
+   - 添加信用卡并充值最低 $5
+
+#### 🟣 选项 B：Claude API（如果账号正常）
+
 1. 访问 https://console.anthropic.com
 2. 注册账号（用邮箱）
 3. 验证邮箱并登录
+4. 点击右上角账户菜单 → **"API Keys"**
+5. 点击 **"Create Key"**
+6. 输入名称：`mangaflow`
+7. **立即复制密钥**（只显示一次！）
+   - 格式：`sk-ant-api03-xxxxx...`
+8. 充值：最低 $5
 
-#### 2.2 获取 API Key
-1. 点击右上角账户菜单
-2. 选择 **"API Keys"**
-3. 点击 **"Create Key"**
-4. 输入名称：`mangaflow`
-5. 点击创建，**立即复制密钥**（只显示一次！）
-6. 密钥格式：`sk-ant-api03-xxxxx...`
-
-#### 2.3 充值（可选）
-- 新账号可能有免费额度
-- 如需充值，最低 $5 美金
+**⚠️ 注意**：如果 Claude 账号被封禁（显示 "account banned"），请使用 OpenAI
 
 ### 3. 配置环境变量
 
 打开项目中的 `.env.local` 文件，修改为：
 
+#### 如果使用 OpenAI：
 ```env
 # ===== Supabase 配置 =====
-# 从步骤 1.2 复制过来
 NEXT_PUBLIC_SUPABASE_URL=https://你的项目ID.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGc...（复制你的 anon key）
 SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...（复制你的 service_role key）
 SUPABASE_PROJECT_ID=你的项目ID
 
 # ===== Blob Storage（暂时跳过）=====
-# 注释掉，使用本地存储测试
 # BLOB_READ_WRITE_TOKEN=
 USE_LOCAL_STORAGE=true
 
-# ===== Claude API =====
-# 从步骤 2.2 复制过来
-ANTHROPIC_API_KEY=sk-ant-api03-你的密钥
+# ===== OpenAI API（使用 OpenAI 翻译）=====
+OPENAI_API_KEY=sk-proj-你的OpenAI密钥
+# ANTHROPIC_API_KEY=（不需要填）
+
+# ===== 其他配置 =====
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+DEFAULT_TRANSLATION_PROVIDER=openai
+DEFAULT_OCR_PROVIDER=tesseract
+FREE_TIER_MAX_PROJECTS=3
+FREE_TIER_MAX_PAGES_PER_PROJECT=50
+FREE_TIER_MAX_CONCURRENT_JOBS=2
+```
+
+#### 如果使用 Claude：
+```env
+# ===== Supabase 配置 =====
+NEXT_PUBLIC_SUPABASE_URL=https://你的项目ID.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGc...（复制你的 anon key）
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...（复制你的 service_role key）
+SUPABASE_PROJECT_ID=你的项目ID
+
+# ===== Blob Storage（暂时跳过）=====
+# BLOB_READ_WRITE_TOKEN=
+USE_LOCAL_STORAGE=true
+
+# ===== Claude API（使用 Claude 翻译）=====
+ANTHROPIC_API_KEY=sk-ant-api03-你的Claude密钥
+# OPENAI_API_KEY=（不需要填）
 
 # ===== 其他配置 =====
 NEXT_PUBLIC_APP_URL=http://localhost:3000
@@ -146,6 +182,8 @@ FREE_TIER_MAX_PROJECTS=3
 FREE_TIER_MAX_PAGES_PER_PROJECT=50
 FREE_TIER_MAX_CONCURRENT_JOBS=2
 ```
+
+**重要**：记得修改 `DEFAULT_TRANSLATION_PROVIDER` 为你选择的服务（`openai` 或 `claude`）
 
 ### 4. 启动项目
 
