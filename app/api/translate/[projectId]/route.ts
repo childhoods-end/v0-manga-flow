@@ -67,9 +67,24 @@ export async function POST(
       try {
         console.log(`Processing page ${page.page_index + 1}/${pages.length}`)
 
-        // Get image buffer from local storage
-        const imagePath = join(process.cwd(), 'public', page.original_blob_url)
-        const imageBuffer = await readFile(imagePath)
+        // Get image buffer
+        let imageBuffer: Buffer
+
+        // Check if URL is from Supabase Storage or local
+        if (page.original_blob_url.startsWith('http')) {
+          // Fetch from Supabase Storage or external URL
+          console.log('Fetching image from URL:', page.original_blob_url)
+          const response = await fetch(page.original_blob_url)
+          if (!response.ok) {
+            throw new Error(`Failed to fetch image: ${response.statusText}`)
+          }
+          imageBuffer = Buffer.from(await response.arrayBuffer())
+        } else {
+          // Read from local filesystem
+          console.log('Reading image from local filesystem')
+          const imagePath = join(process.cwd(), 'public', page.original_blob_url)
+          imageBuffer = await readFile(imagePath)
+        }
 
         // Perform OCR
         console.log('Performing OCR...')

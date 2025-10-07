@@ -108,49 +108,109 @@ export async function POST(request: NextRequest) {
 
     console.log('Project created:', project.id)
 
-    // Process files and save locally (since Blob might not be configured)
-    const uploadDir = join(process.cwd(), 'public', 'uploads', project.id)
-
-    // Create upload directory if it doesn't exist
-    if (!existsSync(uploadDir)) {
-      await mkdir(uploadDir, { recursive: true })
-    }
+    // Check if we're in serverless environment
+    const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
 
     let pageIndex = 0
-    for (const file of files) {
-      try {
-        const buffer = Buffer.from(await file.arrayBuffer())
 
-        // Get image dimensions
-        const metadata = await sharp(buffer).metadata()
-        const width = metadata.width || 800
-        const height = metadata.height || 1200
+    if (isServerless || process.env.USE_SUPABASE_STORAGE === 'true') {
+      // Use Supabase Storage for serverless environments
+      console.log('Using Supabase Storage (serverless mode)')
 
-        // Save file locally
-        const fileName = `page-${pageIndex}.${metadata.format || 'png'}`
-        const filePath = join(uploadDir, fileName)
-        await writeFile(filePath, buffer)
+      for (const file of files) {
+        try {
+          const buffer = Buffer.from(await file.arrayBuffer())
 
-        // Create page record with local URL
-        const localUrl = `/uploads/${project.id}/${fileName}`
+          // Get image dimensions
+          const metadata = await sharp(buffer).metadata()
+          const width = metadata.width || 800
+          const height = metadata.height || 1200
 
-        const { error: pageError } = await supabaseAdmin
-          .from('pages')
-          .insert({
-            project_id: project.id,
-            page_index: pageIndex,
-            width,
-            height,
-            original_blob_url: localUrl,
-          })
+          // Upload to Supabase Storage
+          const fileName = `${project.id}/page-${pageIndex}.${metadata.format || 'png'}`
+          const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+            .from('manga-pages')
+            .upload(fileName, buffer, {
+              contentType: `image/${metadata.format || 'png'}`,
+              upsert: true,
+            })
 
-        if (pageError) {
-          console.error('Failed to insert page:', pageError)
+          if (uploadError) {
+            console.error('Failed to upload to Supabase Storage:', uploadError)
+            throw uploadError
+          }
+
+          // Get public URL
+          const { data: urlData } = supabaseAdmin.storage
+            .from('manga-pages')
+            .getPublicUrl(fileName)
+
+          // Create page record
+          const { error: pageError } = await supabaseAdmin
+            .from('pages')
+            .insert({
+              project_id: project.id,
+              page_index: pageIndex,
+              width,
+              height,
+              original_blob_url: urlData.publicUrl,
+            })
+
+          if (pageError) {
+            console.error('Failed to insert page:', pageError)
+          }
+
+          pageIndex++
+        } catch (error) {
+          console.error('Failed to process file:', error)
         }
+      }
+    } else {
+      // Use local file system for development
+      console.log('Using local file system (development mode)')
 
-        pageIndex++
-      } catch (error) {
-        console.error('Failed to process file:', error)
+      const uploadDir = join(process.cwd(), 'public', 'uploads', project.id)
+
+      // Create upload directory if it doesn't exist
+      if (!existsSync(uploadDir)) {
+        await mkdir(uploadDir, { recursive: true })
+      }
+
+      for (const file of files) {
+        try {
+          const buffer = Buffer.from(await file.arrayBuffer())
+
+          // Get image dimensions
+          const metadata = await sharp(buffer).metadata()
+          const width = metadata.width || 800
+          const height = metadata.height || 1200
+
+          // Save file locally
+          const fileName = `page-${pageIndex}.${metadata.format || 'png'}`
+          const filePath = join(uploadDir, fileName)
+          await writeFile(filePath, buffer)
+
+          // Create page record with local URL
+          const localUrl = `/uploads/${project.id}/${fileName}`
+
+          const { error: pageError } = await supabaseAdmin
+            .from('pages')
+            .insert({
+              project_id: project.id,
+              page_index: pageIndex,
+              width,
+              height,
+              original_blob_url: localUrl,
+            })
+
+          if (pageError) {
+            console.error('Failed to insert page:', pageError)
+          }
+
+          pageIndex++
+        } catch (error) {
+          console.error('Failed to process file:', error)
+        }
       }
     }
 
