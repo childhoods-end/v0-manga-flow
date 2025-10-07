@@ -34,27 +34,54 @@ export async function POST(request: NextRequest) {
     // Use a valid UUID format for demo user
     const demoUserId = '00000000-0000-0000-0000-000000000000'
 
-    // Check if profile exists, if not create one
-    const { data: profile, error: profileError } = await supabaseAdmin
+    // Check if profile exists
+    let { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('*')
       .eq('id', demoUserId)
       .maybeSingle()
 
     if (!profile) {
+      console.log('Creating demo profile...')
       // Create demo profile
-      const { error: insertError } = await supabaseAdmin.from('profiles').insert({
-        id: demoUserId,
-        email: 'demo@example.com',
-        role: 'user',
-        plan: 'free',
-      })
+      const { data: newProfile, error: insertError } = await supabaseAdmin
+        .from('profiles')
+        .insert({
+          id: demoUserId,
+          email: 'demo@example.com',
+          role: 'user',
+          plan: 'free',
+          credits: 100,
+          age_verified: true,
+        })
+        .select()
+        .single()
 
       if (insertError) {
         console.error('Failed to create demo profile:', insertError)
-        // Continue anyway, the profile might already exist
+        return NextResponse.json(
+          {
+            error: 'Failed to create demo profile',
+            details: insertError.message,
+            hint: 'Please check your Supabase database configuration'
+          },
+          { status: 500 }
+        )
       }
+
+      profile = newProfile
+      console.log('Demo profile created successfully')
     }
+
+    // Ensure profile exists
+    if (!profile) {
+      return NextResponse.json(
+        { error: 'Profile not found and could not be created' },
+        { status: 500 }
+      )
+    }
+
+    console.log('Using profile:', profile.id)
 
     // Create project
     const { data: project, error: projectError } = await supabaseAdmin
