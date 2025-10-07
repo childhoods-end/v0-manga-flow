@@ -1,65 +1,11 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Upload, Sparkles, ArrowRight } from "lucide-react"
+import { Upload, Sparkles, ArrowRight, Languages, Wand2 } from "lucide-react"
 import { Card } from "@/components/ui/card"
-import { useRouter } from "next/navigation"
-import { useRef, useState } from "react"
+import Link from "next/link"
 
 export function HeroSection() {
-  const router = useRouter()
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [isDragging, setIsDragging] = useState(false)
-
-  const handleStartTranslating = () => {
-    router.push("/projects/new")
-  }
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files
-    if (files && files.length > 0) {
-      handleFiles(files)
-    }
-  }
-
-  const handleFiles = (files: FileList) => {
-    // Store files in sessionStorage for the new project page
-    const fileArray = Array.from(files)
-    const fileData = fileArray.map(file => ({
-      name: file.name,
-      size: file.size,
-      type: file.type
-    }))
-    sessionStorage.setItem('pendingUpload', JSON.stringify(fileData))
-
-    // Navigate to new project page
-    router.push("/projects/new")
-  }
-
-  const handleUploadClick = () => {
-    fileInputRef.current?.click()
-  }
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragging(true)
-  }
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragging(false)
-  }
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragging(false)
-
-    const files = e.dataTransfer.files
-    if (files && files.length > 0) {
-      handleFiles(files)
-    }
-  }
-
   return (
     <section className="relative overflow-hidden pt-32 pb-20 sm:pt-40 sm:pb-28">
       {/* Background gradient effects */}
@@ -90,64 +36,71 @@ export function HeroSection() {
 
           {/* CTA Buttons */}
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <Button
-              size="lg"
-              onClick={handleStartTranslating}
-              className="group h-12 gap-2 bg-primary px-8 text-base font-semibold text-primary-foreground hover:bg-primary/90"
-            >
-              Start translating free
-              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-            </Button>
+            <Link href="/translate">
+              <Button
+                size="lg"
+                className="group h-12 gap-2 bg-primary px-8 text-base font-semibold text-primary-foreground hover:bg-primary/90"
+              >
+                Start translating free
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </Button>
+            </Link>
             <Button size="lg" variant="outline" className="h-12 px-8 text-base font-semibold bg-transparent">
               Watch demo
             </Button>
           </div>
 
-          {/* Translation demo card */}
+          {/* How it works demo */}
           <Card className="mx-auto mt-16 max-w-4xl overflow-hidden border-border/50 bg-card/50 backdrop-blur-sm">
             <div className="border-b border-border/50 bg-muted/30 px-6 py-4">
               <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full bg-destructive/60" />
-                <div className="h-3 w-3 rounded-full bg-accent/60" />
-                <div className="h-3 w-3 rounded-full bg-primary/60" />
-                <span className="ml-4 text-sm text-muted-foreground">Quick Translation</span>
+                <Sparkles className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium text-foreground">How It Works</span>
               </div>
             </div>
             <div className="p-8 sm:p-12">
-              <div className="flex flex-col items-center gap-6">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,application/pdf"
-                  multiple
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-                <div
-                  onClick={handleUploadClick}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  className={`flex h-32 w-full items-center justify-center rounded-lg border-2 border-dashed transition-colors cursor-pointer ${
-                    isDragging
-                      ? "border-primary bg-primary/10"
-                      : "border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50"
-                  }`}
-                >
-                  <div className="text-center">
-                    <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
-                    <p className="mt-2 text-sm font-medium text-muted-foreground">
-                      Drop your comic page here or click to upload
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">Supports JPG, PNG, PDF up to 10MB</p>
+              <div className="grid gap-8 md:grid-cols-3">
+                {/* Step 1 */}
+                <div className="text-center">
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                    <Upload className="h-8 w-8 text-primary" />
                   </div>
+                  <h3 className="mb-2 text-lg font-semibold">1. Upload</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Upload your manga or comic pages in JPG, PNG, or as a ZIP file
+                  </p>
                 </div>
-                <Button
-                  onClick={handleUploadClick}
-                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90 sm:w-auto sm:px-12"
-                >
-                  Upload & Translate
-                </Button>
+
+                {/* Step 2 */}
+                <div className="text-center">
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                    <Wand2 className="h-8 w-8 text-primary" />
+                  </div>
+                  <h3 className="mb-2 text-lg font-semibold">2. AI Processing</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Our AI detects text bubbles and translates them with context awareness
+                  </p>
+                </div>
+
+                {/* Step 3 */}
+                <div className="text-center">
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                    <Languages className="h-8 w-8 text-primary" />
+                  </div>
+                  <h3 className="mb-2 text-lg font-semibold">3. Download</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Get your translated pages ready to read in your preferred language
+                  </p>
+                </div>
+              </div>
+
+              {/* CTA */}
+              <div className="mt-8 text-center">
+                <Link href="/translate">
+                  <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90">
+                    Try It Now - Free
+                  </Button>
+                </Link>
               </div>
             </div>
           </Card>
