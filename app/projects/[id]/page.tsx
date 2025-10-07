@@ -17,6 +17,8 @@ export default function ProjectPage() {
   const [pages, setPages] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isTranslating, setIsTranslating] = useState(false)
+  const [translationProgress, setTranslationProgress] = useState<string>('')
 
   useEffect(() => {
     loadProject()
@@ -50,6 +52,48 @@ export default function ProjectPage() {
       setError(err instanceof Error ? err.message : 'Failed to load project')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleStartTranslation() {
+    if (!project || isTranslating) return
+
+    const confirmed = confirm(
+      `Start translation for ${pages.length} page(s)?\n\nThis will use AI to detect and translate text.`
+    )
+
+    if (!confirmed) return
+
+    setIsTranslating(true)
+    setTranslationProgress('Starting translation...')
+
+    try {
+      const response = await fetch(`/api/translate/${projectId}`, {
+        method: 'POST',
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Translation failed')
+      }
+
+      const result = await response.json()
+
+      setTranslationProgress(
+        `Translation completed! Processed ${result.processedPages}/${result.totalPages} pages`
+      )
+
+      // Reload project to get updated status
+      setTimeout(() => {
+        loadProject()
+        setIsTranslating(false)
+        setTranslationProgress('')
+      }, 2000)
+    } catch (err) {
+      console.error('Translation failed:', err)
+      alert(err instanceof Error ? err.message : 'Translation failed')
+      setIsTranslating(false)
+      setTranslationProgress('')
     }
   }
 
@@ -176,20 +220,62 @@ export default function ProjectPage() {
           </Card>
         )}
 
+        {/* Translation Progress */}
+        {isTranslating && (
+          <Card className="mt-8 bg-blue-50 dark:bg-blue-950/30 border-blue-200">
+            <CardContent className="py-8">
+              <div className="flex items-center gap-3">
+                <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                <div>
+                  <p className="font-medium">Translating...</p>
+                  <p className="text-sm text-muted-foreground">{translationProgress}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Next Steps */}
         <Card className="mt-8 bg-blue-50 dark:bg-blue-950/30 border-blue-200">
           <CardHeader>
-            <CardTitle>Next Steps</CardTitle>
+            <CardTitle>Actions</CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="space-y-2">
               <li>✅ Project created successfully</li>
               <li>✅ {pages.length} page{pages.length !== 1 ? 's' : ''} uploaded</li>
-              <li>⏳ Translation feature coming soon</li>
+              <li>
+                {project?.status === 'ready' || project?.status === 'processing'
+                  ? '✅ Translation completed'
+                  : project?.status === 'failed'
+                  ? '❌ Translation failed'
+                  : '⏳ Ready to translate'}
+              </li>
             </ul>
-            <div className="mt-6 flex gap-3">
+            <div className="mt-6 flex gap-3 flex-wrap">
+              {(project?.status === 'pending' || project?.status === 'failed') && (
+                <Button
+                  onClick={handleStartTranslation}
+                  disabled={isTranslating}
+                  className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                >
+                  {isTranslating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Translating...
+                    </>
+                  ) : (
+                    <>🤖 Start AI Translation</>
+                  )}
+                </Button>
+              )}
+              {project?.status === 'ready' && (
+                <Button className="bg-gradient-to-r from-green-600 to-emerald-600">
+                  📥 Download Translated Pages
+                </Button>
+              )}
               <Link href="/translate">
-                <Button>Upload Another Project</Button>
+                <Button variant="outline">Upload Another Project</Button>
               </Link>
               <Link href="/">
                 <Button variant="outline">Back to Home</Button>
