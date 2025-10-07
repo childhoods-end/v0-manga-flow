@@ -1,0 +1,179 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { supabaseAdmin } from '@/lib/supabase/server'
+import { readFile } from 'fs/promises'
+import { join } from 'path'
+import JSZip from 'jszip'
+import sharp from 'sharp'
+
+export const runtime = 'nodejs'
+export const maxDuration = 60
+
+interface RouteContext {
+  params: Promise<{ projectId: string }>
+}
+
+interface BBox {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+async function renderTranslatedImage(
+  originalImageBuffer: Buffer,
+  textBlocks: Array<{ bbox: BBox; translated_text: string }>
+): Promise<Buffer> {
+  const image = sharp(originalImageBuffer)
+  const metadata = await image.metadata()
+
+  if (!metadata.width || !metadata.height) {
+    throw new Error('Invalid image metadata')
+  }
+
+  // Create SVG overlay with translated text
+  const svgOverlays = textBlocks
+    .filter((block) => block.translated_text && block.translated_text.trim())
+    .map((block) => {
+      const { bbox, translated_text } = block
+
+      // Calculate font size based on bbox height
+      const fontSize = Math.max(12, Math.floor(bbox.height * 0.6))
+
+      // Escape XML special characters
+      const escapedText = translated_text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;')
+
+      return `
+        <rect x="${bbox.x}" y="${bbox.y}" width="${bbox.width}" height="${bbox.height}" fill="white" opacity="0.95"/>
+        <text
+          x="${bbox.x + bbox.width / 2}"
+          y="${bbox.y + bbox.height / 2}"
+          font-family="Arial, sans-serif"
+          font-size="${fontSize}"
+          fill="black"
+          text-anchor="middle"
+          dominant-baseline="middle"
+          style="word-wrap: break-word;"
+        >${escapedText}</text>
+      `
+    })
+    .join('\n')
+
+  const svg = `
+    <svg width="${metadata.width}" height="${metadata.height}">
+      ${svgOverlays}
+    </svg>
+  `
+
+  // Composite the SVG overlay on top of the original image
+  const result = await image
+    .composite([
+      {
+        input: Buffer.from(svg),
+        top: 0,
+        left: 0,
+      },
+    ])
+    .png()
+    .toBuffer()
+
+  return result
+}
+
+export async function GET(request: NextRequest, context: RouteContext) {
+  try {
+    const { projectId } = await context.params
+
+    // Get project details
+    const { data: project, error: projectError } = await supabaseAdmin
+      .from('projects')
+      .select('*')
+      .eq('id', projectId)
+      .single()
+
+    if (projectError || !project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+    }
+
+    if (project.status !== 'ready') {
+      return NextResponse.json(
+        { error: 'Project translation not completed yet' },
+        { status: 400 }
+      )
+    }
+
+    // Get all pages
+    const { data: pages, error: pagesError } = await supabaseAdmin
+      .from('pages')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('page_index')
+
+    if (pagesError || !pages || pages.length === 0) {
+      return NextResponse.json({ error: 'No pages found' }, { status: 404 })
+    }
+
+    // Create a ZIP archive using JSZip
+    const zip = new JSZip()
+
+    // Process each page and add translated image to ZIP
+    for (const page of pages) {
+      try {
+        // Read original image
+        const imagePath = join(process.cwd(), 'public', page.original_blob_url)
+        const originalImageBuffer = await readFile(imagePath)
+
+        // Get text blocks for this page
+        const { data: textBlocks, error: textBlocksError } = await supabaseAdmin
+          .from('text_blocks')
+          .select('bbox, translated_text')
+          .eq('page_id', page.id)
+
+        if (textBlocksError) {
+          console.error(`Failed to get text blocks for page ${page.id}:`, textBlocksError)
+          // If no text blocks, use original image
+          const fileName = `page_${String(page.page_index + 1).padStart(3, '0')}.png`
+          zip.file(fileName, originalImageBuffer)
+          continue
+        }
+
+        // Render translated image
+        if (textBlocks && textBlocks.length > 0) {
+          const translatedImageBuffer = await renderTranslatedImage(
+            originalImageBuffer,
+            textBlocks
+          )
+          const fileName = `page_${String(page.page_index + 1).padStart(3, '0')}.png`
+          zip.file(fileName, translatedImageBuffer)
+        } else {
+          // No text blocks, use original image
+          const fileName = `page_${String(page.page_index + 1).padStart(3, '0')}.png`
+          zip.file(fileName, originalImageBuffer)
+        }
+      } catch (err) {
+        console.error(`Failed to process page ${page.page_index}:`, err)
+      }
+    }
+
+    // Generate the ZIP file as a buffer
+    const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' })
+
+    // Return the ZIP file
+    return new NextResponse(zipBuffer, {
+      headers: {
+        'Content-Type': 'application/zip',
+        'Content-Disposition': `attachment; filename="${project.title}_translated.zip"`,
+      },
+    })
+  } catch (error) {
+    console.error('Download failed:', error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Download failed' },
+      { status: 500 }
+    )
+  }
+}

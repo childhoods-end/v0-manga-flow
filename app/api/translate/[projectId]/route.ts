@@ -10,16 +10,16 @@ export const runtime = 'nodejs'
 export const maxDuration = 300
 
 interface RouteContext {
-  params: {
+  params: Promise<{
     projectId: string
-  }
+  }>
 }
 
 export async function POST(
   request: NextRequest,
   context: RouteContext
 ) {
-  const { projectId } = context.params
+  const { projectId } = await context.params
 
   try {
     console.log('Starting translation for project:', projectId)

@@ -97,6 +97,41 @@ export default function ProjectPage() {
     }
   }
 
+  async function handleDownloadTranslated() {
+    try {
+      setTranslationProgress('Preparing download...')
+
+      const response = await fetch(`/api/download/${projectId}`)
+
+      if (!response.ok) {
+        throw new Error('Download failed')
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${project.title}_translated.zip`
+      a.style.display = 'none'
+      document.body.appendChild(a)
+      a.click()
+
+      // Clean up after a delay to avoid React errors
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url)
+        if (a.parentNode) {
+          document.body.removeChild(a)
+        }
+      }, 100)
+
+      setTranslationProgress('')
+    } catch (err) {
+      console.error('Download failed:', err)
+      alert(err instanceof Error ? err.message : 'Download failed')
+      setTranslationProgress('')
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-blue-950 dark:to-indigo-950 flex items-center justify-center">
@@ -270,7 +305,10 @@ export default function ProjectPage() {
                 </Button>
               )}
               {project?.status === 'ready' && (
-                <Button className="bg-gradient-to-r from-green-600 to-emerald-600">
+                <Button
+                  onClick={handleDownloadTranslated}
+                  className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                >
                   📥 Download Translated Pages
                 </Button>
               )}
