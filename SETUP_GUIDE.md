@@ -173,29 +173,66 @@ CREATE POLICY "Users can view text_blocks of own projects" ON text_blocks FOR SE
 
 ## 2️⃣ Vercel Blob Storage 配置（图片存储）
 
-### 步骤 1：访问 Vercel
+### 步骤 1：访问 Vercel 并导入项目
 
 1. 打开 https://vercel.com
 2. 使用 GitHub 账号登录
-3. 如果还没有导入项目，先跳过这步，稍后再说
+3. 点击 **"Add New..."** → **"Project"**
+4. 选择你的 GitHub 仓库 `v0-manga-flow`
+5. 点击 **"Import"**
+6. 保持默认设置，点击 **"Deploy"**
+7. 等待部署完成（可以先跳过，继续下一步）
 
 ### 步骤 2：创建 Blob Store
 
-1. 登录后，点击顶部导航的 **"Storage"**
+1. 在 Vercel Dashboard，点击顶部导航的 **"Storage"**
 2. 点击 **"Create Database"**
 3. 选择 **"Blob"**
 4. 输入名称：`mangaflow-storage`
-5. 选择 region（建议与 Supabase 相同）
+5. 选择 region（建议选择离你最近的）
 6. 点击 **"Create"**
 
-### 步骤 3：获取 Token
+### 步骤 3：关联 Blob Store 到项目
 
-1. 创建完成后，进入 Store 详情页
-2. 点击 **".env.local"** 标签
-3. 复制 `BLOB_READ_WRITE_TOKEN` 的值：
+1. 创建完成后，会看到 **"Connect Project"** 按钮
+2. 点击 **"Connect Project"**
+3. 选择你的项目 `v0-manga-flow`
+4. 确认关联
+
+### 步骤 4：获取 Token（3种方法）
+
+**方法 A：从 Blob Store 页面获取**
+1. 在 Storage 页面，点击你创建的 `mangaflow-storage`
+2. 找到 **"Environment Variables"** 或 **"Quickstart"** 标签
+3. 复制显示的 `BLOB_READ_WRITE_TOKEN` 值
+
+**方法 B：从项目设置获取**
+1. 回到你的项目（点击顶部的项目名称）
+2. 点击 **"Settings"** → **"Environment Variables"**
+3. 找到自动添加的 `BLOB_READ_WRITE_TOKEN`
+4. 点击右侧的 **"..."** → **"Reveal"** 查看完整值
+5. 复制这个值
+
+**方法 C：手动生成（如果前两种方法都不行）**
+1. 在项目的 **Settings** → **Environment Variables**
+2. 点击 **"Add New"**
+3. Name: `BLOB_READ_WRITE_TOKEN`
+4. Value: 暂时留空，我们稍后会配置
+5. 记住，这个 Token 的格式应该是：
    ```
    vercel_blob_rw_xxxxxxxxxxxxxxxxxxxxxx
    ```
+
+### 🔍 如果还是找不到 Token：
+
+**临时解决方案**：你可以先跳过 Blob Storage 配置，使用本地文件存储测试功能。
+
+在 `.env.local` 中添加：
+```env
+# 暂时注释掉 Blob Token，使用本地存储
+# BLOB_READ_WRITE_TOKEN=
+USE_LOCAL_STORAGE=true
+```
 
 ---
 
