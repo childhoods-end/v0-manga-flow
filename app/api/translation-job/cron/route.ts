@@ -42,8 +42,13 @@ export async function GET(request: NextRequest) {
       try {
         console.log(`[Cron] Triggering worker for job ${job.id}`)
 
-        // Call worker endpoint
-        const workerUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/translation-job/worker`
+        // Call worker endpoint - use Vercel URL or localhost for development
+        const baseUrl = process.env.VERCEL_URL
+          ? `https://${process.env.VERCEL_URL}`
+          : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+
+        const workerUrl = `${baseUrl}/api/translation-job/worker`
+        console.log(`[Cron] Worker URL: ${workerUrl}`)
 
         const response = await fetch(workerUrl, {
           method: 'POST',
