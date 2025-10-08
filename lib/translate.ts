@@ -157,14 +157,20 @@ async function translateWithGoogle(
     const startTime = Date.now()
 
     // Use same credentials as Google Vision
-    const credentials = process.env.GOOGLE_CLOUD_VISION_KEY
+    const credentialsJson = process.env.GOOGLE_CLOUD_VISION_KEY
 
-    if (!credentials) {
+    if (!credentialsJson) {
       throw new Error('GOOGLE_CLOUD_VISION_KEY environment variable not set')
     }
 
+    const credentials = JSON.parse(credentialsJson)
+
     const translateClient = new translate.Translate({
-      credentials: JSON.parse(credentials),
+      projectId: credentials.project_id,
+      credentials: {
+        client_email: credentials.client_email,
+        private_key: credentials.private_key,
+      },
     })
 
     // Language code mapping (Google uses different codes)

@@ -186,14 +186,20 @@ async function performGoogleVisionOCR(
     const startTime = Date.now()
 
     // Initialize Google Vision client with credentials from env
-    const credentials = process.env.GOOGLE_CLOUD_VISION_KEY
+    const credentialsJson = process.env.GOOGLE_CLOUD_VISION_KEY
 
-    if (!credentials) {
+    if (!credentialsJson) {
       throw new Error('GOOGLE_CLOUD_VISION_KEY environment variable not set')
     }
 
+    const credentials = JSON.parse(credentialsJson)
+
     const client = new vision.ImageAnnotatorClient({
-      credentials: JSON.parse(credentials),
+      projectId: credentials.project_id,
+      credentials: {
+        client_email: credentials.client_email,
+        private_key: credentials.private_key,
+      },
     })
 
     // Perform text detection
