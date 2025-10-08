@@ -219,7 +219,7 @@ export async function POST(request: NextRequest) {
       .from('projects')
       .update({
         total_pages: pageIndex,
-        status: 'ready', // Skip OCR for demo
+        status: 'pending', // Wait for translation
       })
       .eq('id', project.id)
 
