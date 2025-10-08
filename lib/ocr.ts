@@ -1,4 +1,5 @@
 import Tesseract from 'tesseract.js'
+import vision from '@google-cloud/vision'
 
 export type OCRProvider = 'tesseract' | 'google' | 'azure'
 
@@ -32,7 +33,7 @@ export async function performOCR(
     case 'tesseract':
       return performTesseractOCR(imageBuffer, options)
     case 'google':
-      throw new Error('Google Vision OCR not implemented yet')
+      return performGoogleVisionOCR(imageBuffer, options)
     case 'azure':
       throw new Error('Azure OCR not implemented yet')
     default:
@@ -167,6 +168,150 @@ function createLineFromWords(words: Tesseract.Word[]): OCRResult {
       width: x1 - x0,
       height: y1 - y0,
     },
+    confidence: avgConfidence,
+  }
+}
+
+/**
+ * Perform OCR using Google Cloud Vision API
+ */
+async function performGoogleVisionOCR(
+  imageBuffer: Buffer,
+  options: OCROptions = {}
+): Promise<OCRResult[]> {
+  const { minConfidence = 60 } = options
+
+  try {
+    console.log('Starting Google Cloud Vision OCR')
+    const startTime = Date.now()
+
+    // Initialize Google Vision client with credentials from env
+    const credentials = process.env.GOOGLE_CLOUD_VISION_KEY
+
+    if (!credentials) {
+      throw new Error('GOOGLE_CLOUD_VISION_KEY environment variable not set')
+    }
+
+    const client = new vision.ImageAnnotatorClient({
+      credentials: JSON.parse(credentials),
+    })
+
+    // Perform text detection
+    const [result] = await client.textDetection({
+      image: { content: imageBuffer },
+    })
+
+    const detections = result.textAnnotations
+
+    if (!detections || detections.length === 0) {
+      console.log('Google Vision found no text')
+      return []
+    }
+
+    // First annotation is the full text, skip it and use individual words
+    const textBlocks = detections.slice(1).map((annotation) => {
+      const vertices = annotation.boundingPoly?.vertices || []
+
+      if (vertices.length < 4) {
+        return null
+      }
+
+      const xs = vertices.map((v) => v.x || 0)
+      const ys = vertices.map((v) => v.y || 0)
+
+      const x = Math.min(...xs)
+      const y = Math.min(...ys)
+      const width = Math.max(...xs) - x
+      const height = Math.max(...ys) - y
+
+      return {
+        text: annotation.description || '',
+        bbox: { x, y, width, height },
+        confidence: (annotation.confidence || 0.9) * 100, // Google doesn't always provide confidence
+      }
+    }).filter((block): block is OCRResult =>
+      block !== null &&
+      block.text.trim() !== '' &&
+      block.confidence >= minConfidence
+    )
+
+    const elapsed = Math.round((Date.now() - startTime) / 1000)
+    console.log(`Google Vision found ${textBlocks.length} text blocks in ${elapsed}s`)
+
+    // Group into lines for better translation
+    return groupTextBlocksIntoLines(textBlocks)
+  } catch (error) {
+    console.error('Google Vision OCR error:', error)
+    throw new Error(
+      `Google Vision OCR failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
+  }
+}
+
+/**
+ * Group Google Vision text blocks into logical lines
+ */
+function groupTextBlocksIntoLines(blocks: OCRResult[]): OCRResult[] {
+  if (blocks.length === 0) {
+    return []
+  }
+
+  // Sort blocks by vertical position
+  const sorted = [...blocks].sort((a, b) => {
+    const verticalDiff = a.bbox.y - b.bbox.y
+    if (Math.abs(verticalDiff) < 20) {
+      return a.bbox.x - b.bbox.x
+    }
+    return verticalDiff
+  })
+
+  const lines: OCRResult[] = []
+  let currentLine: OCRResult[] = []
+  let currentLineY = sorted[0].bbox.y
+
+  for (const block of sorted) {
+    const blockY = block.bbox.y
+    const lineHeight = currentLine.length > 0 ? currentLine[0].bbox.height : 20
+
+    if (Math.abs(blockY - currentLineY) < lineHeight * 0.5) {
+      currentLine.push(block)
+    } else {
+      if (currentLine.length > 0) {
+        lines.push(mergeBlocks(currentLine))
+      }
+      currentLine = [block]
+      currentLineY = blockY
+    }
+  }
+
+  if (currentLine.length > 0) {
+    lines.push(mergeBlocks(currentLine))
+  }
+
+  return lines
+}
+
+/**
+ * Merge multiple blocks into one line
+ */
+function mergeBlocks(blocks: OCRResult[]): OCRResult {
+  const text = blocks.map((b) => b.text).join(' ')
+
+  const xs = blocks.map((b) => b.bbox.x)
+  const ys = blocks.map((b) => b.bbox.y)
+  const x1s = blocks.map((b) => b.bbox.x + b.bbox.width)
+  const y1s = blocks.map((b) => b.bbox.y + b.bbox.height)
+
+  const x = Math.min(...xs)
+  const y = Math.min(...ys)
+  const width = Math.max(...x1s) - x
+  const height = Math.max(...y1s) - y
+
+  const avgConfidence = blocks.reduce((sum, b) => sum + b.confidence, 0) / blocks.length
+
+  return {
+    text: text.trim(),
+    bbox: { x, y, width, height },
     confidence: avgConfidence,
   }
 }

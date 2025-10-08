@@ -145,8 +145,11 @@ export async function POST(request: NextRequest) {
         return mapping[lang] || 'eng'
       }
 
-      // Perform OCR with real Tesseract
-      const ocrResults = await performOCR(imageBuffer, 'tesseract', {
+      // Use Google Cloud Vision if available, otherwise fall back to Tesseract
+      const ocrProvider = process.env.GOOGLE_CLOUD_VISION_KEY ? 'google' : 'tesseract'
+      console.log(`Using OCR provider: ${ocrProvider}`)
+
+      const ocrResults = await performOCR(imageBuffer, ocrProvider, {
         language: getOCRLanguageCode(project.source_language),
       })
 
