@@ -56,7 +56,19 @@ export async function GET(request: NextRequest) {
           body: JSON.stringify({ jobId: job.id }),
         })
 
-        const result = await response.json()
+        console.log(`[Cron] Worker response status: ${response.status}`)
+
+        // Check if response is JSON
+        const contentType = response.headers.get('content-type')
+        let result
+
+        if (contentType && contentType.includes('application/json')) {
+          result = await response.json()
+        } else {
+          const text = await response.text()
+          console.error(`[Cron] Worker returned non-JSON response: ${text.substring(0, 200)}`)
+          result = { error: 'Non-JSON response', preview: text.substring(0, 200) }
+        }
 
         results.push({
           jobId: job.id,
