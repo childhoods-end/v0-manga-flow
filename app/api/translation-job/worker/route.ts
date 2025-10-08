@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { translateBlocks, TranslationBlock } from '@/lib/translate'
+import { performOCR } from '@/lib/ocr'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
 /**
  * Background worker that processes translation jobs
- * Processes one page at a time to avoid timeout
+ * Processes ONE page per invocation to avoid timeout
  */
 export async function POST(request: NextRequest) {
   try {
@@ -29,6 +30,11 @@ export async function POST(request: NextRequest) {
 
     if (jobError || !job) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 })
+    }
+
+    // Check if already completed
+    if (job.status === 'completed') {
+      return NextResponse.json({ message: 'Job already completed', jobId })
     }
 
     // Get project
@@ -53,42 +59,95 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No pages found' }, { status: 404 })
     }
 
-    // Update job status
-    await supabaseAdmin
-      .from('translation_jobs')
-      .update({
-        status: 'processing',
-        started_at: new Date().toISOString(),
+    // Update job status to processing if pending
+    if (job.status === 'pending') {
+      await supabaseAdmin
+        .from('translation_jobs')
+        .update({
+          status: 'processing',
+          started_at: new Date().toISOString(),
+        })
+        .eq('id', jobId)
+    }
+
+    // Find next unprocessed page
+    const currentPage = job.current_page || 0
+
+    if (currentPage >= pages.length) {
+      // All pages processed, mark as completed
+      await supabaseAdmin
+        .from('translation_jobs')
+        .update({
+          status: 'completed',
+          progress: 100,
+          completed_at: new Date().toISOString(),
+        })
+        .eq('id', jobId)
+
+      await supabaseAdmin
+        .from('projects')
+        .update({
+          status: 'ready',
+          processed_pages: pages.length,
+        })
+        .eq('id', job.project_id)
+
+      console.log(`Job ${jobId} completed. All ${pages.length} pages processed`)
+      return NextResponse.json({ success: true, message: 'Job completed', jobId })
+    }
+
+    const page = pages[currentPage]
+    console.log(`Processing page ${currentPage + 1}/${pages.length}`)
+
+    try {
+      // Get image buffer
+      let imageBuffer: Buffer
+
+      if (page.original_blob_url.startsWith('http')) {
+        console.log('Fetching image from URL:', page.original_blob_url)
+        const response = await fetch(page.original_blob_url)
+        if (!response.ok) {
+          throw new Error(`Failed to fetch image: ${response.statusText}`)
+        }
+        imageBuffer = Buffer.from(await response.arrayBuffer())
+      } else {
+        const { readFile } = await import('fs/promises')
+        const { join } = await import('path')
+        const imagePath = join(process.cwd(), 'public', page.original_blob_url)
+        imageBuffer = await readFile(imagePath)
+      }
+
+      console.log('Performing OCR...')
+
+      // Determine OCR language
+      function getOCRLanguageCode(lang: string): string {
+        const mapping: Record<string, string> = {
+          ja: 'jpn+eng',
+          en: 'eng',
+          zh: 'chi_sim+eng',
+          ko: 'kor+eng',
+          es: 'spa+eng',
+          fr: 'fra+eng',
+          de: 'deu+eng',
+        }
+        return mapping[lang] || 'eng'
+      }
+
+      // Perform OCR with real Tesseract
+      const ocrResults = await performOCR(imageBuffer, 'tesseract', {
+        language: getOCRLanguageCode(project.source_language),
       })
-      .eq('id', jobId)
 
-    // Process pages one by one
-    let processedPages = 0
+      console.log(`OCR found ${ocrResults.length} text blocks`)
 
-    for (const page of pages) {
-      try {
-        console.log(`Processing page ${page.page_index + 1}/${pages.length}`)
-
-        // Mock OCR results (replace with real OCR in production)
-        const mockOCRResults = [
-          {
-            text: '안녕하세요',
-            bbox: { x: 50, y: 50, width: 200, height: 40 },
-            confidence: 0.95
-          },
-          {
-            text: '만화',
-            bbox: { x: 100, y: 150, width: 150, height: 35 },
-            confidence: 0.92
-          }
-        ]
-
-        // Translate
-        const translationBlocks: TranslationBlock[] = mockOCRResults.map((ocr, index) => ({
+      if (ocrResults.length > 0) {
+        // Translate text blocks
+        const translationBlocks: TranslationBlock[] = ocrResults.map((ocr, index) => ({
           id: `${page.id}-${index}`,
           text: ocr.text,
         }))
 
+        console.log('Translating with OpenAI...')
         const translations = await translateBlocks(
           translationBlocks,
           project.source_language,
@@ -97,7 +156,7 @@ export async function POST(request: NextRequest) {
         )
 
         // Save to database
-        const textBlocksToInsert = mockOCRResults.map((ocr, index) => ({
+        const textBlocksToInsert = ocrResults.map((ocr, index) => ({
           page_id: page.id,
           bbox: ocr.bbox,
           ocr_text: ocr.text,
@@ -110,55 +169,74 @@ export async function POST(request: NextRequest) {
           .from('text_blocks')
           .insert(textBlocksToInsert)
 
-        processedPages++
+        console.log(`Saved ${textBlocksToInsert.length} text blocks to database`)
+      } else {
+        console.log('No text found on this page')
+      }
 
-        // Update progress
-        const progress = Math.round((processedPages / pages.length) * 100)
+      // Update progress
+      const newCurrentPage = currentPage + 1
+      const progress = Math.round((newCurrentPage / pages.length) * 100)
+
+      await supabaseAdmin
+        .from('translation_jobs')
+        .update({
+          current_page: newCurrentPage,
+          progress,
+        })
+        .eq('id', jobId)
+
+      console.log(`Page ${currentPage} completed. Progress: ${progress}%`)
+
+      // Check if this was the last page
+      if (newCurrentPage >= pages.length) {
         await supabaseAdmin
           .from('translation_jobs')
           .update({
-            current_page: processedPages,
-            progress,
+            status: 'completed',
+            progress: 100,
+            completed_at: new Date().toISOString(),
           })
           .eq('id', jobId)
 
-        console.log(`Page ${page.page_index} completed. Progress: ${progress}%`)
-      } catch (pageError) {
-        console.error(`Failed to process page ${page.page_index}:`, pageError)
-        // Continue with next page
+        await supabaseAdmin
+          .from('projects')
+          .update({
+            status: 'ready',
+            processed_pages: pages.length,
+          })
+          .eq('id', job.project_id)
+
+        console.log(`Job ${jobId} completed`)
       }
+
+      return NextResponse.json({
+        success: true,
+        jobId,
+        processedPage: currentPage,
+        totalPages: pages.length,
+        progress,
+        hasMore: newCurrentPage < pages.length,
+      })
+    } catch (pageError) {
+      console.error(`Failed to process page ${currentPage}:`, pageError)
+
+      // Mark job as failed
+      await supabaseAdmin
+        .from('translation_jobs')
+        .update({
+          status: 'failed',
+          error_message: pageError instanceof Error ? pageError.message : 'Unknown error',
+        })
+        .eq('id', jobId)
+
+      await supabaseAdmin
+        .from('projects')
+        .update({ status: 'failed' })
+        .eq('id', job.project_id)
+
+      throw pageError
     }
-
-    // Update final status
-    const success = processedPages === pages.length
-
-    await supabaseAdmin
-      .from('translation_jobs')
-      .update({
-        status: success ? 'completed' : 'failed',
-        progress: success ? 100 : Math.round((processedPages / pages.length) * 100),
-        completed_at: new Date().toISOString(),
-        error_message: success ? null : 'Some pages failed to process',
-      })
-      .eq('id', jobId)
-
-    await supabaseAdmin
-      .from('projects')
-      .update({
-        status: success ? 'ready' : 'failed',
-        processed_pages: processedPages,
-      })
-      .eq('id', job.project_id)
-
-    console.log(`Job ${jobId} completed. Processed ${processedPages}/${pages.length} pages`)
-
-    return NextResponse.json({
-      success: true,
-      jobId,
-      processedPages,
-      totalPages: pages.length,
-      status: success ? 'completed' : 'failed',
-    })
   } catch (error) {
     console.error('Worker error:', error)
     return NextResponse.json(
