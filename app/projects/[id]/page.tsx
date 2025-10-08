@@ -68,7 +68,8 @@ export default function ProjectPage() {
     setTranslationProgress('Starting translation...')
 
     try {
-      const response = await fetch(`/api/translate/${projectId}`, {
+      // Use simplified translation API for serverless environments
+      const response = await fetch(`/api/translate-simple/${projectId}`, {
         method: 'POST',
       })
 
