@@ -65,31 +65,65 @@ export default function ProjectPage() {
     if (!confirmed) return
 
     setIsTranslating(true)
-    setTranslationProgress('Starting translation...')
+    setTranslationProgress('Creating translation job...')
 
     try {
-      // Use simplified translation API for serverless environments
-      const response = await fetch(`/api/translate-simple/${projectId}`, {
+      // Create translation job
+      const response = await fetch(`/api/translation-job/create/${projectId}`, {
         method: 'POST',
       })
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.message || 'Translation failed')
+        throw new Error(error.message || 'Failed to create translation job')
       }
 
       const result = await response.json()
+      const jobId = result.jobId
 
-      setTranslationProgress(
-        `Translation completed! Processed ${result.processedPages}/${result.totalPages} pages`
-      )
+      setTranslationProgress('Translation job created. Processing...')
 
-      // Reload project to get updated status
+      // Poll for status
+      const pollInterval = setInterval(async () => {
+        try {
+          const statusResponse = await fetch(`/api/translation-job/status/${projectId}`)
+          const statusData = await statusResponse.json()
+
+          if (statusData.exists) {
+            const progress = statusData.progress || 0
+            const current = statusData.currentPage || 0
+            const total = statusData.totalPages || 0
+
+            setTranslationProgress(
+              `Translating... ${progress}% (${current}/${total} pages)`
+            )
+
+            if (statusData.status === 'completed') {
+              clearInterval(pollInterval)
+              setTranslationProgress('Translation completed!')
+              setTimeout(() => {
+                loadProject()
+                setIsTranslating(false)
+                setTranslationProgress('')
+              }, 2000)
+            } else if (statusData.status === 'failed') {
+              clearInterval(pollInterval)
+              throw new Error(statusData.errorMessage || 'Translation failed')
+            }
+          }
+        } catch (pollError) {
+          console.error('Poll error:', pollError)
+        }
+      }, 2000) // Poll every 2 seconds
+
+      // Timeout after 5 minutes
       setTimeout(() => {
-        loadProject()
-        setIsTranslating(false)
-        setTranslationProgress('')
-      }, 2000)
+        clearInterval(pollInterval)
+        if (isTranslating) {
+          setTranslationProgress('Translation is taking longer than expected. Please check back later.')
+          setIsTranslating(false)
+        }
+      }, 300000)
     } catch (err) {
       console.error('Translation failed:', err)
       alert(err instanceof Error ? err.message : 'Translation failed')
