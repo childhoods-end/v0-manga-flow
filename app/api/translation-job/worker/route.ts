@@ -163,14 +163,16 @@ export async function POST(request: NextRequest) {
           text: ocr.text,
         }))
 
-        console.log('Translating with OpenAI...')
+        // Use Google Translate if Vision API is available, otherwise OpenAI
+        const translationProvider = process.env.GOOGLE_CLOUD_VISION_KEY ? 'google' : 'openai'
+        console.log(`Translating with ${translationProvider}...`)
         const translateStartTime = Date.now()
 
         const translations = await translateBlocks(
           translationBlocks,
           project.source_language,
           project.target_language,
-          'openai'
+          translationProvider
         )
 
         const translateElapsed = Math.round((Date.now() - translateStartTime) / 1000)

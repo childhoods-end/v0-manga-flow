@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { v2 as translate } from '@google-cloud/translate'
 
 export type TranslationProvider = 'openai' | 'anthropic' | 'google'
 
@@ -144,19 +145,67 @@ async function translateWithAnthropic(
 }
 
 /**
- * Translate using Google Translate API
+ * Translate using Google Cloud Translation API
  */
 async function translateWithGoogle(
   blocks: TranslationBlock[],
   sourceLang: string,
   targetLang: string
 ): Promise<TranslationResult[]> {
-  const apiKey = process.env.GOOGLE_TRANSLATE_API_KEY
+  try {
+    console.log('Starting Google Cloud Translation')
+    const startTime = Date.now()
 
-  if (!apiKey) {
-    throw new Error('GOOGLE_TRANSLATE_API_KEY not configured')
+    // Use same credentials as Google Vision
+    const credentials = process.env.GOOGLE_CLOUD_VISION_KEY
+
+    if (!credentials) {
+      throw new Error('GOOGLE_CLOUD_VISION_KEY environment variable not set')
+    }
+
+    const translateClient = new translate.Translate({
+      credentials: JSON.parse(credentials),
+    })
+
+    // Language code mapping (Google uses different codes)
+    const googleLangCode: Record<string, string> = {
+      ja: 'ja',
+      en: 'en',
+      zh: 'zh-CN',
+      ko: 'ko',
+      es: 'es',
+      fr: 'fr',
+      de: 'de',
+    }
+
+    const sourceCode = googleLangCode[sourceLang] || sourceLang
+    const targetCode = googleLangCode[targetLang] || targetLang
+
+    // Translate all blocks in parallel
+    const texts = blocks.map((b) => b.text)
+
+    const [translations] = await translateClient.translate(texts, {
+      from: sourceCode,
+      to: targetCode,
+    })
+
+    const translationArray = Array.isArray(translations) ? translations : [translations]
+
+    const results: TranslationResult[] = blocks.map((block, index) => ({
+      id: block.id,
+      originalText: block.text,
+      translatedText: translationArray[index] || block.text,
+      provider: 'google',
+    }))
+
+    const elapsed = Math.round((Date.now() - startTime) / 1000)
+    console.log(`Google Translation completed ${blocks.length} blocks in ${elapsed}s`)
+
+    return results
+  } catch (error) {
+    console.error('Google Translation error:', error)
+    throw new Error(
+      `Google Translation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
   }
-
-  // Implement Google Translate here
-  throw new Error('Google Translate not implemented yet')
 }
