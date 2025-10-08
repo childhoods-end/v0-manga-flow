@@ -4,7 +4,7 @@ import { translateBlocks, TranslationBlock } from '@/lib/translate'
 import { performOCR } from '@/lib/ocr'
 
 export const runtime = 'nodejs'
-export const maxDuration = 60
+export const maxDuration = 60 // Max duration on Vercel Pro plan
 
 /**
  * Background worker that processes translation jobs
@@ -117,7 +117,19 @@ export async function POST(request: NextRequest) {
         imageBuffer = await readFile(imagePath)
       }
 
+      // Optimize image for faster OCR - resize to max 1500px width
+      const sharp = (await import('sharp')).default
+      const metadata = await sharp(imageBuffer).metadata()
+
+      if (metadata.width && metadata.width > 1500) {
+        console.log(`Resizing image from ${metadata.width}px to 1500px for faster OCR`)
+        imageBuffer = await sharp(imageBuffer)
+          .resize(1500, null, { withoutEnlargement: true })
+          .toBuffer()
+      }
+
       console.log('Performing OCR...')
+      const ocrStartTime = Date.now()
 
       // Determine OCR language
       function getOCRLanguageCode(lang: string): string {
@@ -138,7 +150,8 @@ export async function POST(request: NextRequest) {
         language: getOCRLanguageCode(project.source_language),
       })
 
-      console.log(`OCR found ${ocrResults.length} text blocks`)
+      const ocrElapsed = Math.round((Date.now() - ocrStartTime) / 1000)
+      console.log(`OCR found ${ocrResults.length} text blocks in ${ocrElapsed}s`)
 
       if (ocrResults.length > 0) {
         // Translate text blocks
@@ -148,12 +161,17 @@ export async function POST(request: NextRequest) {
         }))
 
         console.log('Translating with OpenAI...')
+        const translateStartTime = Date.now()
+
         const translations = await translateBlocks(
           translationBlocks,
           project.source_language,
           project.target_language,
           'openai'
         )
+
+        const translateElapsed = Math.round((Date.now() - translateStartTime) / 1000)
+        console.log(`Translation completed in ${translateElapsed}s`)
 
         // Save to database
         const textBlocksToInsert = ocrResults.map((ocr, index) => ({

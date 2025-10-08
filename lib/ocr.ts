@@ -51,6 +51,7 @@ async function performTesseractOCR(
 
   try {
     console.log(`Starting Tesseract OCR with language: ${language}`)
+    const startTime = Date.now()
 
     const worker = await Tesseract.createWorker(language, undefined, {
       logger: (m) => {
@@ -60,13 +61,20 @@ async function performTesseractOCR(
       },
     })
 
+    // Use faster OCR settings for serverless environment
+    await worker.setParameters({
+      tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT, // Faster than AUTO
+      tessedit_char_whitelist: '', // No whitelist for better accuracy
+    })
+
     const {
       data: { words },
     } = await worker.recognize(imageBuffer)
 
     await worker.terminate()
 
-    console.log(`Tesseract found ${words.length} words`)
+    const elapsed = Math.round((Date.now() - startTime) / 1000)
+    console.log(`Tesseract found ${words.length} words in ${elapsed}s`)
 
     // Group words into text blocks (lines)
     const lines = groupWordsIntoLines(words, minConfidence)
