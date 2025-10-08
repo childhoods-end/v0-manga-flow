@@ -23,6 +23,8 @@ async function renderTranslatedImage(
   originalImageBuffer: Buffer,
   textBlocks: Array<{ bbox: BBox; translated_text: string }>
 ): Promise<Buffer> {
+  console.log(`Rendering ${textBlocks.length} text blocks onto image`)
+
   const image = sharp(originalImageBuffer)
   const metadata = await image.metadata()
 
@@ -30,24 +32,35 @@ async function renderTranslatedImage(
     throw new Error('Invalid image metadata')
   }
 
+  console.log(`Image dimensions: ${metadata.width}x${metadata.height}`)
+
+  // Filter valid text blocks
+  const validBlocks = textBlocks.filter((block) => block.translated_text && block.translated_text.trim())
+  console.log(`Valid text blocks: ${validBlocks.length}`)
+
+  if (validBlocks.length === 0) {
+    console.log('No valid text blocks, returning original image')
+    return originalImageBuffer
+  }
+
   // Create SVG overlay with translated text
-  const svgOverlays = textBlocks
-    .filter((block) => block.translated_text && block.translated_text.trim())
-    .map((block) => {
-      const { bbox, translated_text } = block
+  const svgOverlays = validBlocks.map((block) => {
+    const { bbox, translated_text } = block
 
-      // Calculate font size based on bbox height
-      const fontSize = Math.max(12, Math.floor(bbox.height * 0.6))
+    // Calculate font size based on bbox height
+    const fontSize = Math.max(12, Math.floor(bbox.height * 0.6))
 
-      // Escape XML special characters
-      const escapedText = translated_text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&apos;')
+    console.log(`Text block: "${translated_text}" at (${bbox.x}, ${bbox.y}) size ${bbox.width}x${bbox.height}`)
 
-      return `
+    // Escape XML special characters
+    const escapedText = translated_text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;')
+
+    return `
         <rect x="${bbox.x}" y="${bbox.y}" width="${bbox.width}" height="${bbox.height}" fill="white" opacity="0.95"/>
         <text
           x="${bbox.x + bbox.width / 2}"
@@ -60,14 +73,15 @@ async function renderTranslatedImage(
           style="word-wrap: break-word;"
         >${escapedText}</text>
       `
-    })
-    .join('\n')
+  }).join('\n')
 
   const svg = `
     <svg width="${metadata.width}" height="${metadata.height}">
       ${svgOverlays}
     </svg>
   `
+
+  console.log('SVG generated, compositing...')
 
   // Composite the SVG overlay on top of the original image
   const result = await image
@@ -81,6 +95,7 @@ async function renderTranslatedImage(
     .png()
     .toBuffer()
 
+  console.log('Image rendering complete')
   return result
 }
 
@@ -141,6 +156,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
         }
 
         // Get text blocks for this page
+        console.log(`Getting text blocks for page ${page.id}`)
         const { data: textBlocks, error: textBlocksError } = await supabaseAdmin
           .from('text_blocks')
           .select('bbox, translated_text')
@@ -154,16 +170,21 @@ export async function GET(request: NextRequest, context: RouteContext) {
           continue
         }
 
+        console.log(`Found ${textBlocks?.length || 0} text blocks for page ${page.page_index}`)
+
         // Render translated image
         if (textBlocks && textBlocks.length > 0) {
+          console.log(`Rendering translated image for page ${page.page_index}`)
           const translatedImageBuffer = await renderTranslatedImage(
             originalImageBuffer,
             textBlocks
           )
           const fileName = `page_${String(page.page_index + 1).padStart(3, '0')}.png`
           zip.file(fileName, translatedImageBuffer)
+          console.log(`Added translated page ${page.page_index} to ZIP`)
         } else {
           // No text blocks, use original image
+          console.log(`No text blocks found, using original image for page ${page.page_index}`)
           const fileName = `page_${String(page.page_index + 1).padStart(3, '0')}.png`
           zip.file(fileName, originalImageBuffer)
         }
