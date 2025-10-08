@@ -113,17 +113,24 @@ export async function POST(
       .update({ status: 'processing' })
       .eq('id', projectId)
 
-    // Trigger worker (in production, this would be a queue system)
-    // For now, we'll use a simple HTTP call to the worker endpoint
+    // Immediately trigger worker to start processing
+    console.log('Triggering worker for immediate processing...')
     try {
-      const workerUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/translation-job/worker`
+      const workerUrl = new URL('/api/translation-job/worker', request.url).toString()
+
+      // Fire and forget - don't wait for response
       fetch(workerUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jobId: job.id }),
-      }).catch(err => console.error('Failed to trigger worker:', err))
+      }).then(async (res) => {
+        const result = await res.json()
+        console.log('Worker triggered:', result)
+      }).catch(err => {
+        console.error('Failed to trigger worker:', err)
+      })
     } catch (err) {
-      console.error('Failed to trigger worker:', err)
+      console.error('Error triggering worker:', err)
     }
 
     return NextResponse.json({
@@ -132,7 +139,7 @@ export async function POST(
       projectId,
       totalPages,
       status: 'pending',
-      message: 'Translation job created. Processing will start shortly.',
+      message: 'Translation job created. Processing started.',
     })
   } catch (error) {
     console.error('Failed to create translation job:', error)

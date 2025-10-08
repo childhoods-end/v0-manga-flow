@@ -83,9 +83,11 @@ export default function ProjectPage() {
 
       setTranslationProgress('Translation job created. Processing...')
 
-      // Poll for status
+      // Poll for status and trigger worker if still pending
+      let pollCount = 0
       const pollInterval = setInterval(async () => {
         try {
+          pollCount++
           const statusResponse = await fetch(`/api/translation-job/status/${projectId}`)
           const statusData = await statusResponse.json()
 
@@ -97,6 +99,14 @@ export default function ProjectPage() {
             setTranslationProgress(
               `Translating... ${progress}% (${current}/${total} pages)`
             )
+
+            // If still pending after 10 seconds, manually trigger worker
+            if (statusData.status === 'pending' && pollCount > 5) {
+              console.log('Job still pending, manually triggering worker...')
+              fetch(`/api/translation-job/trigger/${jobId}`, {
+                method: 'POST'
+              }).catch(err => console.error('Failed to trigger worker:', err))
+            }
 
             if (statusData.status === 'completed') {
               clearInterval(pollInterval)
