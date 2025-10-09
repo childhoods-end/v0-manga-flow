@@ -178,15 +178,22 @@ export async function POST(request: NextRequest) {
         const translateElapsed = Math.round((Date.now() - translateStartTime) / 1000)
         console.log(`Translation completed in ${translateElapsed}s`)
 
-        // Save to database
-        const textBlocksToInsert = ocrResults.map((ocr, index) => ({
-          page_id: page.id,
-          bbox: ocr.bbox,
-          ocr_text: ocr.text,
-          translated_text: translations[index]?.translatedText || ocr.text,
-          confidence: ocr.confidence,
-          status: 'translated',
-        }))
+        // Save to database with estimated font size
+        const textBlocksToInsert = ocrResults.map((ocr, index) => {
+          // Estimate original font size from bbox height
+          // Typical font size is about 60-70% of bbox height for single-line text
+          const estimatedFontSize = Math.round(ocr.bbox.height * 0.65)
+
+          return {
+            page_id: page.id,
+            bbox: ocr.bbox,
+            ocr_text: ocr.text,
+            translated_text: translations[index]?.translatedText || ocr.text,
+            confidence: ocr.confidence,
+            status: 'translated',
+            font_size: estimatedFontSize,
+          }
+        })
 
         await supabaseAdmin
           .from('text_blocks')

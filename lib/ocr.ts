@@ -255,46 +255,95 @@ async function performGoogleVisionOCR(
 }
 
 /**
- * Group Google Vision text blocks into logical lines
+ * Detect if text blocks are arranged vertically (common in manga)
+ */
+function isVerticalText(blocks: OCRResult[]): boolean {
+  if (blocks.length < 2) return false
+
+  let verticalCount = 0
+  let horizontalCount = 0
+
+  for (let i = 0; i < blocks.length - 1; i++) {
+    const curr = blocks[i]
+    const next = blocks[i + 1]
+
+    const horizontalDist = Math.abs(next.bbox.x - curr.bbox.x)
+    const verticalDist = Math.abs(next.bbox.y - curr.bbox.y)
+
+    if (verticalDist > horizontalDist) {
+      verticalCount++
+    } else {
+      horizontalCount++
+    }
+  }
+
+  return verticalCount > horizontalCount
+}
+
+/**
+ * Group Google Vision text blocks into speech bubbles/sentences
  */
 function groupTextBlocksIntoLines(blocks: OCRResult[]): OCRResult[] {
   if (blocks.length === 0) {
     return []
   }
 
-  // Sort blocks by vertical position
+  // Detect text orientation
+  const isVertical = isVerticalText(blocks)
+  console.log(`Text orientation: ${isVertical ? 'vertical' : 'horizontal'}`)
+
+  // Sort blocks based on text direction
   const sorted = [...blocks].sort((a, b) => {
-    const verticalDiff = a.bbox.y - b.bbox.y
-    if (Math.abs(verticalDiff) < 20) {
+    if (isVertical) {
+      // Vertical text: right to left, top to bottom
+      const horizontalDiff = b.bbox.x - a.bbox.x // Right to left
+      if (Math.abs(horizontalDiff) > 50) {
+        return horizontalDiff
+      }
+      return a.bbox.y - b.bbox.y // Top to bottom
+    } else {
+      // Horizontal text: top to bottom, left to right
+      const verticalDiff = a.bbox.y - b.bbox.y
+      if (Math.abs(verticalDiff) > 20) {
+        return verticalDiff
+      }
       return a.bbox.x - b.bbox.x
     }
-    return verticalDiff
   })
 
-  const lines: OCRResult[] = []
-  let currentLine: OCRResult[] = []
-  let currentLineY = sorted[0].bbox.y
+  // Group blocks into speech bubbles based on proximity
+  const bubbles: OCRResult[][] = []
+  let currentBubble: OCRResult[] = [sorted[0]]
 
-  for (const block of sorted) {
-    const blockY = block.bbox.y
-    const lineHeight = currentLine.length > 0 ? currentLine[0].bbox.height : 20
+  for (let i = 1; i < sorted.length; i++) {
+    const curr = sorted[i]
+    const prev = sorted[i - 1]
 
-    if (Math.abs(blockY - currentLineY) < lineHeight * 0.5) {
-      currentLine.push(block)
+    // Calculate distance between blocks
+    const horizontalDist = Math.abs(curr.bbox.x - prev.bbox.x)
+    const verticalDist = Math.abs(curr.bbox.y - prev.bbox.y)
+
+    // Determine if blocks belong to same bubble
+    const maxDistance = isVertical ? prev.bbox.width * 1.5 : prev.bbox.height * 1.5
+    const distance = isVertical ? horizontalDist : verticalDist
+
+    if (distance < maxDistance) {
+      currentBubble.push(curr)
     } else {
-      if (currentLine.length > 0) {
-        lines.push(mergeBlocks(currentLine))
-      }
-      currentLine = [block]
-      currentLineY = blockY
+      bubbles.push(currentBubble)
+      currentBubble = [curr]
     }
   }
 
-  if (currentLine.length > 0) {
-    lines.push(mergeBlocks(currentLine))
+  if (currentBubble.length > 0) {
+    bubbles.push(currentBubble)
   }
 
-  return lines
+  // Merge each bubble into a single text block
+  const result = bubbles.map((bubble) => mergeBlocks(bubble))
+
+  console.log(`Grouped ${blocks.length} blocks into ${result.length} bubbles`)
+  return result
 }
 
 /**

@@ -212,32 +212,45 @@ export default function ProjectPage() {
           for (const block of page.textBlocks) {
             if (!block.translated_text?.trim()) continue
 
-            const { bbox, translated_text } = block
-            let fontSize = Math.max(14, Math.floor(bbox.height * 0.4))
-            ctx.font = `${fontSize}px "Microsoft YaHei", "SimHei", sans-serif`
+            const { bbox, translated_text, font_size } = block
 
-            const maxCharsPerLine = Math.floor(bbox.width / (fontSize * 0.9))
+            // Use original font size if available, otherwise estimate
+            let fontSize = font_size || Math.max(14, Math.floor(bbox.height * 0.65))
+
+            // Set font with proper weight
+            ctx.font = `500 ${fontSize}px "Microsoft YaHei", "SimHei", "Arial", sans-serif`
+            ctx.textBaseline = 'middle'
+
+            // Calculate how many characters can fit per line
+            const charWidth = fontSize * 0.9 // Chinese characters are roughly square
+            const maxCharsPerLine = Math.max(1, Math.floor((bbox.width * 0.9) / charWidth))
             const lines = wrapTextForCanvas(translated_text, maxCharsPerLine)
 
-            const lineHeight = fontSize * 1.3
-            if (lines.length * lineHeight > bbox.height * 0.9) {
-              fontSize = Math.max(10, Math.floor((bbox.height * 0.9) / (lines.length * 1.3)))
-              ctx.font = `${fontSize}px "Microsoft YaHei", "SimHei", sans-serif`
+            // Adjust font size if text doesn't fit
+            const lineHeight = fontSize * 1.2
+            const totalTextHeight = lines.length * lineHeight
+
+            if (totalTextHeight > bbox.height * 0.95) {
+              // Text is too tall, reduce font size
+              fontSize = Math.max(10, Math.floor((bbox.height * 0.95) / (lines.length * 1.2)))
+              ctx.font = `500 ${fontSize}px "Microsoft YaHei", "SimHei", "Arial", sans-serif`
             }
 
-            const adjustedLineHeight = fontSize * 1.3
+            const adjustedLineHeight = fontSize * 1.2
 
+            // Draw white background with slight opacity
             ctx.fillStyle = 'rgba(255, 255, 255, 0.95)'
             ctx.fillRect(bbox.x, bbox.y, bbox.width, bbox.height)
 
-            ctx.fillStyle = 'black'
+            // Draw text
+            ctx.fillStyle = '#000000'
             ctx.textAlign = 'center'
-            ctx.textBaseline = 'middle'
 
             const startY = bbox.y + (bbox.height - lines.length * adjustedLineHeight) / 2 + adjustedLineHeight / 2
 
             lines.forEach((line, idx) => {
-              ctx.fillText(line, bbox.x + bbox.width / 2, startY + idx * adjustedLineHeight)
+              const y = startY + idx * adjustedLineHeight
+              ctx.fillText(line, bbox.x + bbox.width / 2, y)
             })
           }
 

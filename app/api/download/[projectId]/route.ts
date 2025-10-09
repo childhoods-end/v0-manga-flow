@@ -176,7 +176,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
         pages.map(async (page) => {
           const { data: textBlocks } = await supabaseAdmin
             .from('text_blocks')
-            .select('bbox, translated_text')
+            .select('bbox, translated_text, font_size, ocr_text')
             .eq('page_id', page.id)
 
           return {
