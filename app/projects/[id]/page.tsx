@@ -19,6 +19,8 @@ export default function ProjectPage() {
   const [error, setError] = useState<string | null>(null)
   const [isTranslating, setIsTranslating] = useState(false)
   const [translationProgress, setTranslationProgress] = useState<string>('')
+  const [showTranslations, setShowTranslations] = useState(false)
+  const [translations, setTranslations] = useState<any>(null)
 
   useEffect(() => {
     loadProject()
@@ -139,6 +141,21 @@ export default function ProjectPage() {
       alert(err instanceof Error ? err.message : 'Translation failed')
       setIsTranslating(false)
       setTranslationProgress('')
+    }
+  }
+
+  async function loadTranslations() {
+    try {
+      const response = await fetch(`/api/projects/${projectId}/translations`)
+      if (!response.ok) {
+        throw new Error('Failed to load translations')
+      }
+      const data = await response.json()
+      setTranslations(data)
+      setShowTranslations(true)
+    } catch (err) {
+      console.error('Failed to load translations:', err)
+      alert('Failed to load translations')
     }
   }
 
@@ -264,7 +281,62 @@ export default function ProjectPage() {
               </div>
             </CardDescription>
           </CardHeader>
+          <CardContent>
+            <div className="flex gap-3">
+              <Button onClick={loadTranslations} variant="outline">
+                查看翻译文本
+              </Button>
+              {project.status === 'ready' && (
+                <Button onClick={handleDownloadTranslated} disabled={!!translationProgress}>
+                  {translationProgress || '下载翻译图片'}
+                </Button>
+              )}
+            </div>
+          </CardContent>
         </Card>
+
+        {/* Translations Display */}
+        {showTranslations && translations && (
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle>翻译文本预览</CardTitle>
+              <CardDescription>
+                共 {translations.totalPages} 页，{translations.pages.reduce((sum: number, p: any) => sum + p.textBlocks.length, 0)} 个文本块
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6 max-h-[600px] overflow-y-auto">
+                {translations.pages.map((page: any) => (
+                  page.textBlocks.length > 0 && (
+                    <div key={page.pageIndex} className="border-b pb-4">
+                      <h3 className="font-bold mb-3 text-lg">第 {page.pageIndex + 1} 页</h3>
+                      <div className="space-y-3">
+                        {page.textBlocks.map((block: any, idx: number) => (
+                          <div key={idx} className="bg-slate-50 dark:bg-slate-900 p-3 rounded-lg">
+                            <div className="text-sm text-slate-600 dark:text-slate-400 mb-1">
+                              原文：{block.ocrText}
+                            </div>
+                            <div className="font-medium text-blue-600 dark:text-blue-400">
+                              译文：{block.translatedText}
+                            </div>
+                            {block.confidence && (
+                              <div className="text-xs text-slate-500 mt-1">
+                                置信度：{Math.round(block.confidence)}%
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                ))}
+              </div>
+              <Button onClick={() => setShowTranslations(false)} variant="outline" className="mt-4">
+                关闭
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Pages Grid */}
         <h2 className="text-2xl font-bold mb-4">Pages</h2>
