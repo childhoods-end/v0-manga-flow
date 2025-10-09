@@ -4,7 +4,6 @@ import { readFile } from 'fs/promises'
 import { join } from 'path'
 import JSZip from 'jszip'
 import sharp from 'sharp'
-import { createCanvas, loadImage } from '@napi-rs/canvas'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -23,13 +22,9 @@ interface BBox {
 /**
  * Split text into multiple lines to fit within bbox width
  */
-function wrapText(text: string, maxWidth: number, fontSize: number): string[] {
+function wrapText(text: string, maxCharsPerLine: number): string[] {
   const lines: string[] = []
   const chars = text.split('')
-
-  // Estimate character width (Chinese chars are roughly square, fontSize * 0.9)
-  const charWidth = fontSize * 0.9
-  const maxCharsPerLine = Math.floor(maxWidth / charWidth)
 
   if (maxCharsPerLine < 1) {
     return [text]
@@ -59,7 +54,8 @@ async function renderTranslatedImage(
 ): Promise<Buffer> {
   console.log(`Rendering ${textBlocks.length} text blocks onto image`)
 
-  const metadata = await sharp(originalImageBuffer).metadata()
+  const image = sharp(originalImageBuffer)
+  const metadata = await image.metadata()
 
   if (!metadata.width || !metadata.height) {
     throw new Error('Invalid image metadata')
@@ -76,67 +72,66 @@ async function renderTranslatedImage(
     return originalImageBuffer
   }
 
-  try {
-    // Load original image onto canvas
-    const img = await loadImage(originalImageBuffer)
-    const canvas = createCanvas(img.width, img.height)
-    const ctx = canvas.getContext('2d')
+  // Create simple SVG overlays with basic text rendering
+  const svgElements = validBlocks.map((block) => {
+    const { bbox, translated_text } = block
 
-    // Draw original image
-    ctx.drawImage(img, 0, 0)
+    console.log(`Text block: "${translated_text}" at (${bbox.x}, ${bbox.y}) size ${bbox.width}x${bbox.height}`)
 
-    // Draw each text block
-    for (const block of validBlocks) {
-      const { bbox, translated_text } = block
+    // Escape XML
+    const escapedText = translated_text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;')
 
-      console.log(`Text block: "${translated_text}" at (${bbox.x}, ${bbox.y}) size ${bbox.width}x${bbox.height}`)
+    // Calculate font size and wrapping
+    let fontSize = Math.max(14, Math.floor(bbox.height * 0.4))
+    const maxCharsPerLine = Math.floor(bbox.width / (fontSize * 0.9))
+    const lines = wrapText(escapedText, maxCharsPerLine)
 
-      // Calculate appropriate font size
-      let fontSize = Math.max(16, Math.floor(bbox.height * 0.5))
-
-      // Set font - @napi-rs/canvas supports sans-serif which includes Chinese
-      ctx.font = `${fontSize}px sans-serif`
-
-      // Wrap text into multiple lines
-      const lines = wrapText(translated_text, bbox.width * 0.9, fontSize)
-
-      // Adjust font size if too many lines
-      const lineHeight = fontSize * 1.2
-      const totalHeight = lines.length * lineHeight
-
-      if (totalHeight > bbox.height * 0.9) {
-        fontSize = Math.max(12, Math.floor((bbox.height * 0.9) / (lines.length * 1.2)))
-        ctx.font = `${fontSize}px sans-serif`
-      }
-
-      const adjustedLineHeight = fontSize * 1.2
-
-      // Draw white background rectangle
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.95)'
-      ctx.fillRect(bbox.x, bbox.y, bbox.width, bbox.height)
-
-      // Draw text lines
-      ctx.fillStyle = 'black'
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-
-      const startY = bbox.y + (bbox.height - lines.length * adjustedLineHeight) / 2 + adjustedLineHeight / 2
-
-      lines.forEach((line, index) => {
-        const y = startY + index * adjustedLineHeight
-        ctx.fillText(line, bbox.x + bbox.width / 2, y)
-      })
+    // Adjust font size if too many lines
+    const lineHeight = fontSize * 1.3
+    if (lines.length * lineHeight > bbox.height * 0.9) {
+      fontSize = Math.max(10, Math.floor((bbox.height * 0.9) / (lines.length * 1.3)))
     }
 
-    // Convert canvas to buffer
-    const result = canvas.toBuffer('image/png')
-    console.log('Image rendering complete')
-    return result
-  } catch (error) {
-    console.error('Canvas rendering failed:', error)
-    // Fallback to original image
-    return originalImageBuffer
-  }
+    const adjustedLineHeight = fontSize * 1.3
+    const startY = bbox.y + (bbox.height - lines.length * adjustedLineHeight) / 2 + fontSize
+
+    // White background
+    const rect = `<rect x="${bbox.x}" y="${bbox.y}" width="${bbox.width}" height="${bbox.height}" fill="white" opacity="0.95"/>`
+
+    // Text lines - use simple tspan for each line
+    const textElements = lines.map((line, i) => {
+      const y = startY + i * adjustedLineHeight
+      return `<tspan x="${bbox.x + bbox.width / 2}" y="${y}">${line}</tspan>`
+    }).join('')
+
+    const text = `<text text-anchor="middle" font-size="${fontSize}" fill="black" style="font-family: Arial, sans-serif;">${textElements}</text>`
+
+    return rect + text
+  }).join('\n')
+
+  const svg = `<svg width="${metadata.width}" height="${metadata.height}">${svgElements}</svg>`
+
+  console.log('Compositing SVG overlay...')
+
+  // Composite overlay
+  const result = await image
+    .composite([
+      {
+        input: Buffer.from(svg),
+        top: 0,
+        left: 0,
+      },
+    ])
+    .png()
+    .toBuffer()
+
+  console.log('Image rendering complete')
+  return result
 }
 
 export async function GET(request: NextRequest, context: RouteContext) {
