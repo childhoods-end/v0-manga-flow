@@ -50,9 +50,18 @@ export async function GET(request: NextRequest) {
         const workerUrl = `${baseUrl}/api/translation-job/worker`
         console.log(`[Cron] Worker URL: ${workerUrl}`)
 
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        }
+
+        // Add Vercel protection bypass if configured
+        if (process.env.VERCEL_AUTOMATION_BYPASS_SECRET) {
+          headers['x-vercel-protection-bypass'] = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+        }
+
         const response = await fetch(workerUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({ jobId: job.id }),
         })
 

@@ -118,10 +118,19 @@ export async function POST(
     try {
       const workerUrl = new URL('/api/translation-job/worker', request.url).toString()
 
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+
+      // Add Vercel protection bypass if configured
+      if (process.env.VERCEL_AUTOMATION_BYPASS_SECRET) {
+        headers['x-vercel-protection-bypass'] = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+      }
+
       // Fire and forget - don't wait for response
       fetch(workerUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ jobId: job.id }),
       }).then(async (res) => {
         const result = await res.json()
