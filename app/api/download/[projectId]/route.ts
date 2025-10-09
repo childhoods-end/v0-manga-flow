@@ -4,7 +4,7 @@ import { readFile } from 'fs/promises'
 import { join } from 'path'
 import JSZip from 'jszip'
 import sharp from 'sharp'
-import { createCanvas, loadImage, registerFont } from 'canvas'
+import { createCanvas, loadImage } from '@napi-rs/canvas'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -94,8 +94,8 @@ async function renderTranslatedImage(
       // Calculate appropriate font size
       let fontSize = Math.max(16, Math.floor(bbox.height * 0.5))
 
-      // Set font - Canvas will use system fonts
-      ctx.font = `${fontSize}px Arial, "Microsoft YaHei", "SimHei", sans-serif`
+      // Set font - @napi-rs/canvas supports sans-serif which includes Chinese
+      ctx.font = `${fontSize}px sans-serif`
 
       // Wrap text into multiple lines
       const lines = wrapText(translated_text, bbox.width * 0.9, fontSize)
@@ -106,7 +106,7 @@ async function renderTranslatedImage(
 
       if (totalHeight > bbox.height * 0.9) {
         fontSize = Math.max(12, Math.floor((bbox.height * 0.9) / (lines.length * 1.2)))
-        ctx.font = `${fontSize}px Arial, "Microsoft YaHei", "SimHei", sans-serif`
+        ctx.font = `${fontSize}px sans-serif`
       }
 
       const adjustedLineHeight = fontSize * 1.2
