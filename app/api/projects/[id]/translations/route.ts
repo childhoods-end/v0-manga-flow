@@ -5,7 +5,7 @@ export const runtime = 'nodejs'
 export const maxDuration = 10
 
 interface RouteContext {
-  params: Promise<{ projectId: string }>
+  params: Promise<{ id: string }>
 }
 
 /**
@@ -13,7 +13,7 @@ interface RouteContext {
  */
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
-    const { projectId } = await context.params
+    const { id: projectId } = await context.params
 
     // Get all pages for this project
     const { data: pages, error: pagesError } = await supabaseAdmin
