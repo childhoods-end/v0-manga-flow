@@ -19,6 +19,39 @@ interface BBox {
   height: number
 }
 
+/**
+ * Split text into multiple lines to fit within bbox width
+ */
+function wrapText(text: string, maxWidth: number, fontSize: number): string[] {
+  const lines: string[] = []
+  const chars = text.split('')
+
+  // Estimate character width (Chinese chars are roughly square, fontSize * 0.9)
+  const charWidth = fontSize * 0.9
+  const maxCharsPerLine = Math.floor(maxWidth / charWidth)
+
+  if (maxCharsPerLine < 1) {
+    return [text]
+  }
+
+  let currentLine = ''
+
+  for (const char of chars) {
+    if (currentLine.length >= maxCharsPerLine) {
+      lines.push(currentLine)
+      currentLine = char
+    } else {
+      currentLine += char
+    }
+  }
+
+  if (currentLine) {
+    lines.push(currentLine)
+  }
+
+  return lines
+}
+
 async function renderTranslatedImage(
   originalImageBuffer: Buffer,
   textBlocks: Array<{ bbox: BBox; translated_text: string }>
@@ -47,9 +80,6 @@ async function renderTranslatedImage(
   const svgOverlays = validBlocks.map((block) => {
     const { bbox, translated_text } = block
 
-    // Calculate font size based on bbox height
-    const fontSize = Math.max(12, Math.floor(bbox.height * 0.6))
-
     console.log(`Text block: "${translated_text}" at (${bbox.x}, ${bbox.y}) size ${bbox.width}x${bbox.height}`)
 
     // Escape XML special characters
@@ -60,23 +90,50 @@ async function renderTranslatedImage(
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&apos;')
 
-    return `
-        <rect x="${bbox.x}" y="${bbox.y}" width="${bbox.width}" height="${bbox.height}" fill="white" opacity="0.95"/>
-        <text
-          x="${bbox.x + bbox.width / 2}"
-          y="${bbox.y + bbox.height / 2}"
-          font-family="Arial, sans-serif"
-          font-size="${fontSize}"
-          fill="black"
-          text-anchor="middle"
-          dominant-baseline="middle"
-          style="word-wrap: break-word;"
-        >${escapedText}</text>
-      `
+    // Calculate appropriate font size
+    let fontSize = Math.max(16, Math.floor(bbox.height * 0.5))
+
+    // Wrap text into multiple lines
+    const lines = wrapText(escapedText, bbox.width * 0.9, fontSize)
+
+    // Adjust font size if too many lines
+    const lineHeight = fontSize * 1.2
+    const totalHeight = lines.length * lineHeight
+
+    if (totalHeight > bbox.height * 0.9) {
+      fontSize = Math.max(12, Math.floor((bbox.height * 0.9) / (lines.length * 1.2)))
+    }
+
+    const adjustedLineHeight = fontSize * 1.2
+    const startY = bbox.y + (bbox.height - lines.length * adjustedLineHeight) / 2 + fontSize * 0.8
+
+    // Create white background rectangle
+    const rect = `<rect x="${bbox.x}" y="${bbox.y}" width="${bbox.width}" height="${bbox.height}" fill="white" opacity="0.95"/>`
+
+    // Create text lines with Chinese font support
+    const textLines = lines.map((line, index) => {
+      const y = startY + index * adjustedLineHeight
+      return `<text
+        x="${bbox.x + bbox.width / 2}"
+        y="${y}"
+        font-family="Noto Sans SC, Microsoft YaHei, SimHei, sans-serif"
+        font-size="${fontSize}"
+        fill="black"
+        text-anchor="middle"
+        font-weight="500"
+      >${line}</text>`
+    }).join('\n')
+
+    return rect + '\n' + textLines
   }).join('\n')
 
   const svg = `
-    <svg width="${metadata.width}" height="${metadata.height}">
+    <svg width="${metadata.width}" height="${metadata.height}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&amp;display=swap');
+        </style>
+      </defs>
       ${svgOverlays}
     </svg>
   `
