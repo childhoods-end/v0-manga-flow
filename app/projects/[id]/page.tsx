@@ -159,31 +159,109 @@ export default function ProjectPage() {
     }
   }
 
+  function wrapTextForCanvas(text: string, maxCharsPerLine: number): string[] {
+    const lines: string[] = []
+    if (maxCharsPerLine < 1) return [text]
+
+    let currentLine = ''
+    for (const char of text) {
+      if (currentLine.length >= maxCharsPerLine) {
+        lines.push(currentLine)
+        currentLine = char
+      } else {
+        currentLine += char
+      }
+    }
+    if (currentLine) lines.push(currentLine)
+    return lines
+  }
+
   async function handleDownloadTranslated() {
     try {
-      setTranslationProgress('Preparing download...')
+      setTranslationProgress('Loading translation data...')
 
-      const response = await fetch(`/api/download/${projectId}`)
+      const response = await fetch(`/api/download/${projectId}?format=json`)
+      if (!response.ok) throw new Error('Failed to load translation data')
 
-      if (!response.ok) {
-        throw new Error('Download failed')
+      const data = await response.json()
+      const { projectTitle, pages } = data
+
+      const JSZip = (await import('jszip')).default
+      const zip = new JSZip()
+
+      for (let i = 0; i < pages.length; i++) {
+        const page = pages[i]
+        setTranslationProgress(`Processing page ${i + 1}/${pages.length}...`)
+
+        try {
+          const img = new Image()
+          img.crossOrigin = 'anonymous'
+          await new Promise((resolve, reject) => {
+            img.onload = resolve
+            img.onerror = reject
+            img.src = page.imageUrl
+          })
+
+          const canvas = document.createElement('canvas')
+          canvas.width = img.width
+          canvas.height = img.height
+          const ctx = canvas.getContext('2d')!
+
+          ctx.drawImage(img, 0, 0)
+
+          for (const block of page.textBlocks) {
+            if (!block.translated_text?.trim()) continue
+
+            const { bbox, translated_text } = block
+            let fontSize = Math.max(14, Math.floor(bbox.height * 0.4))
+            ctx.font = `${fontSize}px "Microsoft YaHei", "SimHei", sans-serif`
+
+            const maxCharsPerLine = Math.floor(bbox.width / (fontSize * 0.9))
+            const lines = wrapTextForCanvas(translated_text, maxCharsPerLine)
+
+            const lineHeight = fontSize * 1.3
+            if (lines.length * lineHeight > bbox.height * 0.9) {
+              fontSize = Math.max(10, Math.floor((bbox.height * 0.9) / (lines.length * 1.3)))
+              ctx.font = `${fontSize}px "Microsoft YaHei", "SimHei", sans-serif`
+            }
+
+            const adjustedLineHeight = fontSize * 1.3
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)'
+            ctx.fillRect(bbox.x, bbox.y, bbox.width, bbox.height)
+
+            ctx.fillStyle = 'black'
+            ctx.textAlign = 'center'
+            ctx.textBaseline = 'middle'
+
+            const startY = bbox.y + (bbox.height - lines.length * adjustedLineHeight) / 2 + adjustedLineHeight / 2
+
+            lines.forEach((line, idx) => {
+              ctx.fillText(line, bbox.x + bbox.width / 2, startY + idx * adjustedLineHeight)
+            })
+          }
+
+          const blob = await new Promise<Blob>((resolve) => canvas.toBlob((b) => resolve(b!), 'image/png'))
+          zip.file(`page_${String(page.pageIndex + 1).padStart(3, '0')}.png`, blob)
+        } catch (err) {
+          console.error(`Failed to process page ${page.pageIndex}:`, err)
+        }
       }
 
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
+      setTranslationProgress('Creating ZIP file...')
+      const zipBlob = await zip.generateAsync({ type: 'blob' })
+
+      const url = window.URL.createObjectURL(zipBlob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `${project.title}_translated.zip`
+      a.download = `${projectTitle}_translated.zip`
       a.style.display = 'none'
       document.body.appendChild(a)
       a.click()
 
-      // Clean up after a delay to avoid React errors
       setTimeout(() => {
         window.URL.revokeObjectURL(url)
-        if (a.parentNode) {
-          document.body.removeChild(a)
-        }
+        if (a.parentNode) document.body.removeChild(a)
       }, 100)
 
       setTranslationProgress('')

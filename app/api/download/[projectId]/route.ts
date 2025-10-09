@@ -138,6 +138,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const { projectId } = await context.params
 
+    // Check if client wants JSON data for client-side rendering
+    const format = request.nextUrl.searchParams.get('format')
+
     // Get project details
     const { data: project, error: projectError } = await supabaseAdmin
       .from('projects')
@@ -165,6 +168,29 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     if (pagesError || !pages || pages.length === 0) {
       return NextResponse.json({ error: 'No pages found' }, { status: 404 })
+    }
+
+    // If format=json, return data for client-side rendering
+    if (format === 'json') {
+      const pagesWithTranslations = await Promise.all(
+        pages.map(async (page) => {
+          const { data: textBlocks } = await supabaseAdmin
+            .from('text_blocks')
+            .select('bbox, translated_text')
+            .eq('page_id', page.id)
+
+          return {
+            pageIndex: page.page_index,
+            imageUrl: page.original_blob_url,
+            textBlocks: textBlocks || [],
+          }
+        })
+      )
+
+      return NextResponse.json({
+        projectTitle: project.title,
+        pages: pagesWithTranslations,
+      })
     }
 
     // Create a ZIP archive using JSZip
