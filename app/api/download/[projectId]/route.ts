@@ -4,6 +4,7 @@ import { readFile } from 'fs/promises'
 import { join } from 'path'
 import JSZip from 'jszip'
 import sharp from 'sharp'
+import { createCanvas, loadImage, registerFont } from 'canvas'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -58,8 +59,7 @@ async function renderTranslatedImage(
 ): Promise<Buffer> {
   console.log(`Rendering ${textBlocks.length} text blocks onto image`)
 
-  const image = sharp(originalImageBuffer)
-  const metadata = await image.metadata()
+  const metadata = await sharp(originalImageBuffer).metadata()
 
   if (!metadata.width || !metadata.height) {
     throw new Error('Invalid image metadata')
@@ -76,84 +76,67 @@ async function renderTranslatedImage(
     return originalImageBuffer
   }
 
-  // Create SVG overlay with translated text
-  const svgOverlays = validBlocks.map((block) => {
-    const { bbox, translated_text } = block
+  try {
+    // Load original image onto canvas
+    const img = await loadImage(originalImageBuffer)
+    const canvas = createCanvas(img.width, img.height)
+    const ctx = canvas.getContext('2d')
 
-    console.log(`Text block: "${translated_text}" at (${bbox.x}, ${bbox.y}) size ${bbox.width}x${bbox.height}`)
+    // Draw original image
+    ctx.drawImage(img, 0, 0)
 
-    // Escape XML special characters
-    const escapedText = translated_text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&apos;')
+    // Draw each text block
+    for (const block of validBlocks) {
+      const { bbox, translated_text } = block
 
-    // Calculate appropriate font size
-    let fontSize = Math.max(16, Math.floor(bbox.height * 0.5))
+      console.log(`Text block: "${translated_text}" at (${bbox.x}, ${bbox.y}) size ${bbox.width}x${bbox.height}`)
 
-    // Wrap text into multiple lines
-    const lines = wrapText(escapedText, bbox.width * 0.9, fontSize)
+      // Calculate appropriate font size
+      let fontSize = Math.max(16, Math.floor(bbox.height * 0.5))
 
-    // Adjust font size if too many lines
-    const lineHeight = fontSize * 1.2
-    const totalHeight = lines.length * lineHeight
+      // Set font - Canvas will use system fonts
+      ctx.font = `${fontSize}px Arial, "Microsoft YaHei", "SimHei", sans-serif`
 
-    if (totalHeight > bbox.height * 0.9) {
-      fontSize = Math.max(12, Math.floor((bbox.height * 0.9) / (lines.length * 1.2)))
+      // Wrap text into multiple lines
+      const lines = wrapText(translated_text, bbox.width * 0.9, fontSize)
+
+      // Adjust font size if too many lines
+      const lineHeight = fontSize * 1.2
+      const totalHeight = lines.length * lineHeight
+
+      if (totalHeight > bbox.height * 0.9) {
+        fontSize = Math.max(12, Math.floor((bbox.height * 0.9) / (lines.length * 1.2)))
+        ctx.font = `${fontSize}px Arial, "Microsoft YaHei", "SimHei", sans-serif`
+      }
+
+      const adjustedLineHeight = fontSize * 1.2
+
+      // Draw white background rectangle
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.95)'
+      ctx.fillRect(bbox.x, bbox.y, bbox.width, bbox.height)
+
+      // Draw text lines
+      ctx.fillStyle = 'black'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+
+      const startY = bbox.y + (bbox.height - lines.length * adjustedLineHeight) / 2 + adjustedLineHeight / 2
+
+      lines.forEach((line, index) => {
+        const y = startY + index * adjustedLineHeight
+        ctx.fillText(line, bbox.x + bbox.width / 2, y)
+      })
     }
 
-    const adjustedLineHeight = fontSize * 1.2
-    const startY = bbox.y + (bbox.height - lines.length * adjustedLineHeight) / 2 + fontSize * 0.8
-
-    // Create white background rectangle
-    const rect = `<rect x="${bbox.x}" y="${bbox.y}" width="${bbox.width}" height="${bbox.height}" fill="white" opacity="0.95"/>`
-
-    // Create text lines with Chinese font support
-    const textLines = lines.map((line, index) => {
-      const y = startY + index * adjustedLineHeight
-      return `<text
-        x="${bbox.x + bbox.width / 2}"
-        y="${y}"
-        font-family="Noto Sans SC, Microsoft YaHei, SimHei, sans-serif"
-        font-size="${fontSize}"
-        fill="black"
-        text-anchor="middle"
-        font-weight="500"
-      >${line}</text>`
-    }).join('\n')
-
-    return rect + '\n' + textLines
-  }).join('\n')
-
-  const svg = `
-    <svg width="${metadata.width}" height="${metadata.height}" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <style>
-          @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&amp;display=swap');
-        </style>
-      </defs>
-      ${svgOverlays}
-    </svg>
-  `
-
-  console.log('SVG generated, compositing...')
-
-  // Composite the SVG overlay on top of the original image
-  const result = await image
-    .composite([
-      {
-        input: Buffer.from(svg),
-        top: 0,
-        left: 0,
-      },
-    ])
-    .png()
-    .toBuffer()
-
-  console.log('Image rendering complete')
-  return result
+    // Convert canvas to buffer
+    const result = canvas.toBuffer('image/png')
+    console.log('Image rendering complete')
+    return result
+  } catch (error) {
+    console.error('Canvas rendering failed:', error)
+    // Fallback to original image
+    return originalImageBuffer
+  }
 }
 
 export async function GET(request: NextRequest, context: RouteContext) {
