@@ -214,44 +214,73 @@ export default function ProjectPage() {
 
             const { bbox, translated_text, font_size } = block
 
-            // Use original font size if available, otherwise estimate
-            let fontSize = font_size || Math.max(14, Math.floor(bbox.height * 0.65))
+            // Start with original or estimated font size
+            let fontSize = font_size || Math.max(12, Math.floor(bbox.height * 0.6))
+            let lines: string[] = []
+            let fits = false
 
-            // Set font with proper weight
-            ctx.font = `500 ${fontSize}px "Microsoft YaHei", "SimHei", "Arial", sans-serif`
-            ctx.textBaseline = 'middle'
-
-            // Calculate how many characters can fit per line
-            const charWidth = fontSize * 0.9 // Chinese characters are roughly square
-            const maxCharsPerLine = Math.max(1, Math.floor((bbox.width * 0.9) / charWidth))
-            const lines = wrapTextForCanvas(translated_text, maxCharsPerLine)
-
-            // Adjust font size if text doesn't fit
-            const lineHeight = fontSize * 1.2
-            const totalTextHeight = lines.length * lineHeight
-
-            if (totalTextHeight > bbox.height * 0.95) {
-              // Text is too tall, reduce font size
-              fontSize = Math.max(10, Math.floor((bbox.height * 0.95) / (lines.length * 1.2)))
+            // Try to fit text with decreasing font sizes
+            for (let attempt = 0; attempt < 5 && !fits; attempt++) {
               ctx.font = `500 ${fontSize}px "Microsoft YaHei", "SimHei", "Arial", sans-serif`
+
+              // Use measureText for accurate width
+              const maxWidth = bbox.width * 0.85 // Leave 15% margin
+              lines = wrapTextByWidth(ctx, translated_text, maxWidth)
+
+              // Check if it fits vertically
+              const lineHeight = fontSize * 1.15
+              const totalHeight = lines.length * lineHeight
+
+              if (totalHeight <= bbox.height * 0.9) {
+                fits = true
+              } else {
+                // Reduce font size and try again
+                fontSize = Math.max(8, fontSize - 2)
+              }
             }
 
-            const adjustedLineHeight = fontSize * 1.2
+            const lineHeight = fontSize * 1.15
 
-            // Draw white background with slight opacity
+            // Draw white background
             ctx.fillStyle = 'rgba(255, 255, 255, 0.95)'
             ctx.fillRect(bbox.x, bbox.y, bbox.width, bbox.height)
 
             // Draw text
             ctx.fillStyle = '#000000'
             ctx.textAlign = 'center'
+            ctx.textBaseline = 'middle'
 
-            const startY = bbox.y + (bbox.height - lines.length * adjustedLineHeight) / 2 + adjustedLineHeight / 2
+            const startY = bbox.y + (bbox.height - lines.length * lineHeight) / 2 + lineHeight / 2
 
             lines.forEach((line, idx) => {
-              const y = startY + idx * adjustedLineHeight
+              const y = startY + idx * lineHeight
               ctx.fillText(line, bbox.x + bbox.width / 2, y)
             })
+          }
+
+          // Helper function to wrap text by measured width
+          function wrapTextByWidth(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+            const chars = text.split('')
+            const lines: string[] = []
+            let currentLine = ''
+
+            for (const char of chars) {
+              const testLine = currentLine + char
+              const metrics = ctx.measureText(testLine)
+
+              if (metrics.width > maxWidth && currentLine.length > 0) {
+                lines.push(currentLine)
+                currentLine = char
+              } else {
+                currentLine = testLine
+              }
+            }
+
+            if (currentLine) {
+              lines.push(currentLine)
+            }
+
+            return lines.length > 0 ? lines : [text]
           }
 
           const blob = await new Promise<Blob>((resolve) => canvas.toBlob((b) => resolve(b!), 'image/png'))

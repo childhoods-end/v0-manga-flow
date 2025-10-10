@@ -214,38 +214,87 @@ async function performGoogleVisionOCR(
       return []
     }
 
-    // First annotation is the full text, skip it and use individual words
-    const textBlocks = detections.slice(1).map((annotation) => {
-      const vertices = annotation.boundingPoly?.vertices || []
+    // Use full text detection to get paragraphs
+    const [fullResult] = await client.documentTextDetection({
+      image: { content: imageBuffer },
+    })
 
-      if (vertices.length < 4) {
-        return null
+    const pages = fullResult.fullTextAnnotation?.pages || []
+    const allTextBlocks: OCRResult[] = []
+
+    if (pages.length > 0) {
+      // Use structured text blocks from document detection
+      for (const page of pages) {
+        for (const block of page.blocks || []) {
+          // Each block represents a coherent text region (like a speech bubble)
+          const blockTexts: string[] = []
+          const vertices = block.boundingBox?.vertices || []
+
+          // Collect all text from paragraphs in this block
+          for (const paragraph of block.paragraphs || []) {
+            const words = paragraph.words || []
+            const paragraphText = words
+              .map((word) => {
+                const symbols = word.symbols || []
+                return symbols.map((s) => s.text || '').join('')
+              })
+              .join('')
+
+            if (paragraphText.trim()) {
+              blockTexts.push(paragraphText.trim())
+            }
+          }
+
+          if (blockTexts.length > 0 && vertices.length >= 4) {
+            const xs = vertices.map((v) => v.x || 0)
+            const ys = vertices.map((v) => v.y || 0)
+
+            const x = Math.min(...xs)
+            const y = Math.min(...ys)
+            const width = Math.max(...xs) - x
+            const height = Math.max(...ys) - y
+
+            allTextBlocks.push({
+              text: blockTexts.join(' '),
+              bbox: { x, y, width, height },
+              confidence: block.confidence ? block.confidence * 100 : 90,
+            })
+          }
+        }
       }
+    }
 
-      const xs = vertices.map((v) => v.x || 0)
-      const ys = vertices.map((v) => v.y || 0)
+    // Fallback to word-level detection if no blocks found
+    if (allTextBlocks.length === 0 && detections && detections.length > 1) {
+      console.log('No structured blocks, falling back to word grouping')
+      const textBlocks = detections.slice(1).map((annotation) => {
+        const vertices = annotation.boundingPoly?.vertices || []
+        if (vertices.length < 4) return null
 
-      const x = Math.min(...xs)
-      const y = Math.min(...ys)
-      const width = Math.max(...xs) - x
-      const height = Math.max(...ys) - y
+        const xs = vertices.map((v) => v.x || 0)
+        const ys = vertices.map((v) => v.y || 0)
 
-      return {
-        text: annotation.description || '',
-        bbox: { x, y, width, height },
-        confidence: (annotation.confidence || 0.9) * 100, // Google doesn't always provide confidence
-      }
-    }).filter((block): block is OCRResult =>
-      block !== null &&
-      block.text.trim() !== '' &&
-      block.confidence >= minConfidence
-    )
+        return {
+          text: annotation.description || '',
+          bbox: {
+            x: Math.min(...xs),
+            y: Math.min(...ys),
+            width: Math.max(...xs) - Math.min(...xs),
+            height: Math.max(...ys) - Math.min(...ys),
+          },
+          confidence: (annotation.confidence || 0.9) * 100,
+        }
+      }).filter((block): block is OCRResult => block !== null && block.text.trim() !== '')
+
+      const elapsed = Math.round((Date.now() - startTime) / 1000)
+      console.log(`Google Vision found ${textBlocks.length} word blocks in ${elapsed}s`)
+      return groupTextBlocksIntoSpeechBubbles(textBlocks)
+    }
 
     const elapsed = Math.round((Date.now() - startTime) / 1000)
-    console.log(`Google Vision found ${textBlocks.length} text blocks in ${elapsed}s`)
+    console.log(`Google Vision found ${allTextBlocks.length} text blocks in ${elapsed}s`)
 
-    // Group into lines for better translation
-    return groupTextBlocksIntoLines(textBlocks)
+    return allTextBlocks
   } catch (error) {
     console.error('Google Vision OCR error:', error)
     throw new Error(
@@ -281,9 +330,9 @@ function isVerticalText(blocks: OCRResult[]): boolean {
 }
 
 /**
- * Group Google Vision text blocks into speech bubbles/sentences
+ * Group word-level text blocks into speech bubbles using spatial clustering
  */
-function groupTextBlocksIntoLines(blocks: OCRResult[]): OCRResult[] {
+function groupTextBlocksIntoSpeechBubbles(blocks: OCRResult[]): OCRResult[] {
   if (blocks.length === 0) {
     return []
   }
