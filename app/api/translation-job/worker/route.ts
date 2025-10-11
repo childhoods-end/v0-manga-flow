@@ -178,11 +178,12 @@ export async function POST(request: NextRequest) {
         const translateElapsed = Math.round((Date.now() - translateStartTime) / 1000)
         console.log(`Translation completed in ${translateElapsed}s`)
 
-        // Save to database with estimated font size
+        // Save to database with estimated font size and orientation
         const textBlocksToInsert = ocrResults.map((ocr, index) => {
           // Estimate original font size from bbox height
-          // Typical font size is about 60-70% of bbox height for single-line text
-          const estimatedFontSize = Math.round(ocr.bbox.height * 0.65)
+          const estimatedFontSize = ocr.orientation === 'vertical'
+            ? Math.round(ocr.bbox.width * 0.8) // Vertical text: use width
+            : Math.round(ocr.bbox.height * 0.65) // Horizontal text: use height
 
           return {
             page_id: page.id,
@@ -192,6 +193,7 @@ export async function POST(request: NextRequest) {
             confidence: ocr.confidence,
             status: 'translated',
             font_size: estimatedFontSize,
+            text_orientation: ocr.orientation || 'horizontal',
           }
         })
 

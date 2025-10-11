@@ -14,6 +14,7 @@ export interface OCRResult {
   text: string
   bbox: BBox
   confidence: number
+  orientation?: 'horizontal' | 'vertical'
 }
 
 export interface OCROptions {
@@ -254,10 +255,15 @@ async function performGoogleVisionOCR(
             const width = Math.max(...xs) - x
             const height = Math.max(...ys) - y
 
+            // Detect text orientation from bbox shape
+            // Vertical text tends to be taller than wide
+            const orientation = height > width * 1.5 ? 'vertical' : 'horizontal'
+
             allTextBlocks.push({
               text: blockTexts.join(' '),
               bbox: { x, y, width, height },
               confidence: block.confidence ? block.confidence * 100 : 90,
+              orientation,
             })
           }
         }

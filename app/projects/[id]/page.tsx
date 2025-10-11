@@ -207,80 +207,27 @@ export default function ProjectPage() {
           canvas.height = img.height
           const ctx = canvas.getContext('2d')!
 
+          // Enable high-quality rendering
+          ctx.imageSmoothingEnabled = true
+          ctx.imageSmoothingQuality = 'high'
+
           ctx.drawImage(img, 0, 0)
 
           for (const block of page.textBlocks) {
             if (!block.translated_text?.trim()) continue
 
-            const { bbox, translated_text, font_size } = block
-
-            // Start with original or estimated font size
-            let fontSize = font_size || Math.max(12, Math.floor(bbox.height * 0.6))
-            let lines: string[] = []
-            let fits = false
-
-            // Try to fit text with decreasing font sizes
-            for (let attempt = 0; attempt < 5 && !fits; attempt++) {
-              ctx.font = `500 ${fontSize}px "Microsoft YaHei", "SimHei", "Arial", sans-serif`
-
-              // Use measureText for accurate width
-              const maxWidth = bbox.width * 0.85 // Leave 15% margin
-              lines = wrapTextByWidth(ctx, translated_text, maxWidth)
-
-              // Check if it fits vertically
-              const lineHeight = fontSize * 1.15
-              const totalHeight = lines.length * lineHeight
-
-              if (totalHeight <= bbox.height * 0.9) {
-                fits = true
-              } else {
-                // Reduce font size and try again
-                fontSize = Math.max(8, fontSize - 2)
-              }
-            }
-
-            const lineHeight = fontSize * 1.15
+            const { bbox, translated_text, font_size, text_orientation } = block
+            const isVertical = text_orientation === 'vertical'
 
             // Draw white background
             ctx.fillStyle = 'rgba(255, 255, 255, 0.95)'
             ctx.fillRect(bbox.x, bbox.y, bbox.width, bbox.height)
 
-            // Draw text
-            ctx.fillStyle = '#000000'
-            ctx.textAlign = 'center'
-            ctx.textBaseline = 'middle'
-
-            const startY = bbox.y + (bbox.height - lines.length * lineHeight) / 2 + lineHeight / 2
-
-            lines.forEach((line, idx) => {
-              const y = startY + idx * lineHeight
-              ctx.fillText(line, bbox.x + bbox.width / 2, y)
-            })
-          }
-
-          // Helper function to wrap text by measured width
-          function wrapTextByWidth(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
-            const chars = text.split('')
-            const lines: string[] = []
-            let currentLine = ''
-
-            for (const char of chars) {
-              const testLine = currentLine + char
-              const metrics = ctx.measureText(testLine)
-
-              if (metrics.width > maxWidth && currentLine.length > 0) {
-                lines.push(currentLine)
-                currentLine = char
-              } else {
-                currentLine = testLine
-              }
+            if (isVertical) {
+              renderVerticalText(ctx, translated_text, bbox, font_size)
+            } else {
+              renderHorizontalText(ctx, translated_text, bbox, font_size)
             }
-
-            if (currentLine) {
-              lines.push(currentLine)
-            }
-
-            return lines.length > 0 ? lines : [text]
           }
 
           const blob = await new Promise<Blob>((resolve) => canvas.toBlob((b) => resolve(b!), 'image/png'))
@@ -311,6 +258,123 @@ export default function ProjectPage() {
       console.error('Download failed:', err)
       alert(err instanceof Error ? err.message : 'Download failed')
       setTranslationProgress('')
+    }
+
+    // Render horizontal text with aggressive fitting
+    function renderHorizontalText(
+      ctx: CanvasRenderingContext2D,
+      text: string,
+      bbox: { x: number; y: number; width: number; height: number },
+      originalFontSize: number
+    ) {
+      const fontFamily = '"Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "SimHei", "Arial", sans-serif'
+      const minFontSize = 6
+      const maxWidth = bbox.width * 0.8 // 20% margin
+      const maxHeight = bbox.height * 0.85 // 15% margin top+bottom
+
+      let fontSize = originalFontSize || Math.round(bbox.height * 0.65)
+      let lines: string[] = []
+      let lineHeight = 0
+
+      // Aggressively reduce font size until text fits
+      while (fontSize >= minFontSize) {
+        ctx.font = `500 ${fontSize}px ${fontFamily}`
+        lineHeight = fontSize * 1.1 // Tight line height
+
+        lines = wrapByMeasure(ctx, text, maxWidth)
+        const totalHeight = lines.length * lineHeight
+
+        if (totalHeight <= maxHeight) {
+          break // Found a fitting size
+        }
+
+        fontSize -= 1 // Reduce 1px at a time
+      }
+
+      // Draw text centered
+      ctx.fillStyle = '#000000'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.font = `500 ${fontSize}px ${fontFamily}`
+
+      const startY = bbox.y + (bbox.height - lines.length * lineHeight) / 2 + lineHeight / 2
+
+      lines.forEach((line, idx) => {
+        const y = startY + idx * lineHeight
+        ctx.fillText(line, bbox.x + bbox.width / 2, y)
+      })
+    }
+
+    // Render vertical text (top-to-bottom)
+    function renderVerticalText(
+      ctx: CanvasRenderingContext2D,
+      text: string,
+      bbox: { x: number; y: number; width: number; height: number },
+      originalFontSize: number
+    ) {
+      const fontFamily = '"Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "SimHei", "Arial", sans-serif'
+      const minFontSize = 6
+      const maxHeight = bbox.height * 0.85 // 15% margin
+      const maxWidth = bbox.width * 0.8 // 20% margin
+
+      const chars = text.split('')
+      let fontSize = originalFontSize || Math.round(bbox.width * 0.8)
+
+      // Find largest font size that fits
+      while (fontSize >= minFontSize) {
+        ctx.font = `500 ${fontSize}px ${fontFamily}`
+
+        const charHeight = fontSize * 1.05 // Tight spacing
+        const totalHeight = chars.length * charHeight
+
+        // Also check that font size doesn't exceed width
+        if (totalHeight <= maxHeight && fontSize <= maxWidth) {
+          break
+        }
+
+        fontSize -= 1
+      }
+
+      // Draw text vertically centered
+      ctx.fillStyle = '#000000'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.font = `500 ${fontSize}px ${fontFamily}`
+
+      const charHeight = fontSize * 1.05
+      const totalHeight = chars.length * charHeight
+      const startY = bbox.y + (bbox.height - totalHeight) / 2 + charHeight / 2
+      const centerX = bbox.x + bbox.width / 2
+
+      chars.forEach((char, idx) => {
+        const y = startY + idx * charHeight
+        ctx.fillText(char, centerX, y)
+      })
+    }
+
+    // Wrap text by measured pixel width
+    function wrapByMeasure(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+      const chars = text.split('')
+      const lines: string[] = []
+      let currentLine = ''
+
+      for (const char of chars) {
+        const testLine = currentLine + char
+        const metrics = ctx.measureText(testLine)
+
+        if (metrics.width > maxWidth && currentLine.length > 0) {
+          lines.push(currentLine)
+          currentLine = char
+        } else {
+          currentLine = testLine
+        }
+      }
+
+      if (currentLine) {
+        lines.push(currentLine)
+      }
+
+      return lines.length > 0 ? lines : [text]
     }
   }
 
