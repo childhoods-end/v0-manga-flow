@@ -72,13 +72,24 @@ async function translateWithOpenAI(
   // Prepare the prompt
   const textsToTranslate = blocks.map((block, index) => `[${index}]: ${block.text}`).join('\n')
 
-  const systemPrompt = `You are a professional translator specializing in manga and comic translations.
-Translate the following text from ${sourceLanguage} to ${targetLanguage}.
-Maintain the tone, style, and context appropriate for manga/comics.
-Keep translations natural and concise to fit in speech bubbles.
-Preserve any sound effects or onomatopoeia in a culturally appropriate way.
+  const systemPrompt = `You are an expert manga translator with deep understanding of both ${sourceLanguage} and ${targetLanguage} cultures.
 
-Return the translations in the same format: [index]: translated_text`
+CRITICAL RULES:
+1. Translate naturally as a native ${targetLanguage} speaker would say it - NOT word-for-word
+2. Capture the emotion, tone, and subtext - make it feel authentic and alive
+3. Use natural ${targetLanguage} expressions, idioms, and speech patterns
+4. Keep it concise for speech bubbles, but prioritize naturalness over brevity
+5. For casual speech, use contractions and natural flow (e.g., "I'm" not "I am", "你们" not "你们各位")
+6. Preserve character personality: formal/informal, polite/rude, energetic/calm
+7. Sound effects: adapt culturally (Japanese ドキドキ → Chinese 怦怦 or 砰砰)
+
+AVOID:
+❌ Mechanical word-for-word translation
+❌ Unnatural grammar or stiff phrasing
+❌ Overly formal language unless character is formal
+❌ Literal translation of idioms
+
+Return each translation on a new line as: [index]: translated_text`
 
   try {
     const response = await openai.chat.completions.create({

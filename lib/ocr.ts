@@ -158,18 +158,26 @@ function createLineFromWords(words: Tesseract.Word[]): OCRResult {
   const x1 = Math.max(...words.map((w) => w.bbox.x1))
   const y1 = Math.max(...words.map((w) => w.bbox.y1))
 
+  const width = x1 - x0
+  const height = y1 - y0
+
   // Calculate average confidence
   const avgConfidence = words.reduce((sum, w) => sum + w.confidence, 0) / words.length
+
+  // Detect text orientation based on bbox shape
+  // If height > width * 1.5, likely vertical text
+  const orientation: 'horizontal' | 'vertical' = height > width * 1.5 ? 'vertical' : 'horizontal'
 
   return {
     text: text.trim(),
     bbox: {
       x: x0,
       y: y0,
-      width: x1 - x0,
-      height: y1 - y0,
+      width,
+      height,
     },
     confidence: avgConfidence,
+    orientation,
   }
 }
 
@@ -280,15 +288,20 @@ async function performGoogleVisionOCR(
         const xs = vertices.map((v) => v.x || 0)
         const ys = vertices.map((v) => v.y || 0)
 
+        const width = Math.max(...xs) - Math.min(...xs)
+        const height = Math.max(...ys) - Math.min(...ys)
+        const orientation = height > width * 1.5 ? 'vertical' : 'horizontal'
+
         return {
           text: annotation.description || '',
           bbox: {
             x: Math.min(...xs),
             y: Math.min(...ys),
-            width: Math.max(...xs) - Math.min(...xs),
-            height: Math.max(...ys) - Math.min(...ys),
+            width,
+            height,
           },
           confidence: (annotation.confidence || 0.9) * 100,
+          orientation,
         }
       }).filter((block): block is OCRResult => block !== null && block.text.trim() !== '')
 
