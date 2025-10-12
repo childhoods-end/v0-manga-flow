@@ -20,8 +20,22 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Get redirect URL from query params
+  // Get redirect URL and error from query params
   const redirectTo = searchParams.get('redirect') || '/translate'
+  const errorParam = searchParams.get('error')
+  const errorMessage = searchParams.get('message')
+
+  useEffect(() => {
+    // Display error if present in URL
+    if (errorParam) {
+      const errorMessages: Record<string, string> = {
+        verification_failed: '邮箱验证失败，请重试注册',
+        verification_exception: '验证过程出错，请联系支持',
+        invalid_verification_link: '无效的验证链接',
+      }
+      setError(errorMessages[errorParam] || errorMessage || '发生错误')
+    }
+  }, [errorParam, errorMessage])
 
   async function handleSignUp(e: React.FormEvent) {
     e.preventDefault()
