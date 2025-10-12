@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { cookies } from 'next/headers'
+import { NextRequest, NextResponse } from 'next/server'
 
-export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 /**
  * Handle email confirmation callback from Supabase
@@ -11,18 +12,30 @@ export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
   const token_hash = requestUrl.searchParams.get('token_hash')
   const type = requestUrl.searchParams.get('type')
-  const redirect_to = requestUrl.searchParams.get('redirect_to') || '/translate'
+  const next = requestUrl.searchParams.get('next') ?? '/translate'
 
-  console.log('Email confirmation callback:', { token_hash, type, redirect_to })
+  console.log('Email confirmation callback:', { token_hash, type, next })
 
   if (token_hash && type) {
+    const cookieStore = await cookies()
+
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         auth: {
-          persistSession: true,
-          autoRefreshToken: true,
+          flowType: 'pkce',
+        },
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value
+          },
+          set(name: string, value: string, options: any) {
+            cookieStore.set({ name, value, ...options })
+          },
+          remove(name: string, options: any) {
+            cookieStore.set({ name, value: '', ...options })
+          },
         },
       }
     )
@@ -44,7 +57,7 @@ export async function GET(request: NextRequest) {
       console.log('Email verification successful')
 
       // Successful verification - redirect to the app
-      return NextResponse.redirect(new URL(redirect_to, request.url))
+      return NextResponse.redirect(new URL(next, request.url))
     } catch (error) {
       console.error('Email verification exception:', error)
       return NextResponse.redirect(
