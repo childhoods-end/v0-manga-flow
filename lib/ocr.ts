@@ -81,15 +81,102 @@ async function performTesseractOCR(
     // Group words into text blocks (lines)
     const lines = groupWordsIntoLines(words, minConfidence)
 
-    console.log(`Grouped into ${lines.length} text blocks`)
+    console.log(`Grouped into ${lines.length} line blocks`)
 
-    return lines
+    // Further group lines into speech bubbles
+    const bubbles = groupLinesIntoSpeechBubbles(lines)
+
+    console.log(`Merged into ${bubbles.length} speech bubbles`)
+
+    return bubbles
   } catch (error) {
     console.error('Tesseract OCR error:', error)
     throw new Error(
       `Tesseract OCR failed: ${error instanceof Error ? error.message : 'Unknown error'}`
     )
   }
+}
+
+/**
+ * Group lines into speech bubbles based on spatial proximity
+ * Same logic as groupTextBlocksIntoSpeechBubbles but for Tesseract lines
+ */
+function groupLinesIntoSpeechBubbles(lines: OCRResult[]): OCRResult[] {
+  if (lines.length === 0) {
+    return []
+  }
+
+  if (lines.length === 1) {
+    return lines
+  }
+
+  // Detect text orientation
+  const isVertical = isVerticalText(lines)
+  console.log(`Text orientation: ${isVertical ? 'vertical' : 'horizontal'}`)
+
+  // Sort lines based on reading order
+  const sorted = [...lines].sort((a, b) => {
+    if (isVertical) {
+      // Vertical text: right to left, top to bottom
+      const horizontalDiff = b.bbox.x - a.bbox.x
+      if (Math.abs(horizontalDiff) > 50) {
+        return horizontalDiff
+      }
+      return a.bbox.y - b.bbox.y
+    } else {
+      // Horizontal text: top to bottom, left to right
+      const verticalDiff = a.bbox.y - b.bbox.y
+      if (Math.abs(verticalDiff) > 30) {
+        return verticalDiff
+      }
+      return a.bbox.x - b.bbox.x
+    }
+  })
+
+  // Group lines into speech bubbles based on spatial proximity
+  const bubbles: OCRResult[][] = []
+  let currentBubble: OCRResult[] = [sorted[0]]
+
+  for (let i = 1; i < sorted.length; i++) {
+    const curr = sorted[i]
+    const prev = sorted[i - 1]
+
+    // Calculate distance between lines
+    const horizontalDist = Math.abs(curr.bbox.x - prev.bbox.x)
+    const verticalDist = Math.abs(curr.bbox.y - prev.bbox.y)
+
+    // Determine if lines belong to same bubble
+    // Use adaptive threshold based on bbox size
+    const avgHeight = (curr.bbox.height + prev.bbox.height) / 2
+    const avgWidth = (curr.bbox.width + prev.bbox.width) / 2
+
+    let shouldMerge = false
+
+    if (isVertical) {
+      // For vertical text: lines in same bubble are horizontally close
+      shouldMerge = horizontalDist < avgWidth * 0.8 && verticalDist < avgHeight * 2.5
+    } else {
+      // For horizontal text: lines in same bubble are vertically close
+      shouldMerge = verticalDist < avgHeight * 1.5 && horizontalDist < avgWidth * 0.5
+    }
+
+    if (shouldMerge) {
+      currentBubble.push(curr)
+    } else {
+      bubbles.push(currentBubble)
+      currentBubble = [curr]
+    }
+  }
+
+  // Don't forget the last bubble
+  if (currentBubble.length > 0) {
+    bubbles.push(currentBubble)
+  }
+
+  // Merge each bubble into a single text block
+  const result = bubbles.map((bubble) => mergeBlocks(bubble))
+
+  return result
 }
 
 /**
@@ -391,11 +478,21 @@ function groupTextBlocksIntoSpeechBubbles(blocks: OCRResult[]): OCRResult[] {
     const horizontalDist = Math.abs(curr.bbox.x - prev.bbox.x)
     const verticalDist = Math.abs(curr.bbox.y - prev.bbox.y)
 
-    // Determine if blocks belong to same bubble
-    const maxDistance = isVertical ? prev.bbox.width * 1.5 : prev.bbox.height * 1.5
-    const distance = isVertical ? horizontalDist : verticalDist
+    // Use adaptive threshold based on bbox size
+    const avgHeight = (curr.bbox.height + prev.bbox.height) / 2
+    const avgWidth = (curr.bbox.width + prev.bbox.width) / 2
 
-    if (distance < maxDistance) {
+    let shouldMerge = false
+
+    if (isVertical) {
+      // For vertical text: blocks in same bubble are horizontally close
+      shouldMerge = horizontalDist < avgWidth * 0.8 && verticalDist < avgHeight * 2.5
+    } else {
+      // For horizontal text: blocks in same bubble are vertically close
+      shouldMerge = verticalDist < avgHeight * 1.5 && horizontalDist < avgWidth * 0.5
+    }
+
+    if (shouldMerge) {
       currentBubble.push(curr)
     } else {
       bubbles.push(currentBubble)
