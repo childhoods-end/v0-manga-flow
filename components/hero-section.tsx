@@ -4,8 +4,24 @@ import { Button } from "@/components/ui/button"
 import { Upload, Sparkles, ArrowRight, Languages, Wand2 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { supabase } from "@/lib/supabase/client"
 
 export function HeroSection() {
+  const router = useRouter()
+
+  async function handleStartTranslating() {
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (user) {
+      // User is logged in, go to translate page
+      router.push('/translate')
+    } else {
+      // User not logged in, redirect to auth with return URL
+      router.push('/auth?redirect=/translate')
+    }
+  }
+
   return (
     <section className="relative overflow-hidden pt-32 pb-20 sm:pt-40 sm:pb-28">
       {/* Background gradient effects */}
@@ -36,15 +52,14 @@ export function HeroSection() {
 
           {/* CTA Buttons */}
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <Link href="/translate">
-              <Button
-                size="lg"
-                className="group h-12 gap-2 bg-primary px-8 text-base font-semibold text-primary-foreground hover:bg-primary/90"
-              >
-                Start translating free
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-              </Button>
-            </Link>
+            <Button
+              size="lg"
+              onClick={handleStartTranslating}
+              className="group h-12 gap-2 bg-primary px-8 text-base font-semibold text-primary-foreground hover:bg-primary/90"
+            >
+              Start translating free
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+            </Button>
             <Button size="lg" variant="outline" className="h-12 px-8 text-base font-semibold bg-transparent">
               Watch demo
             </Button>
@@ -96,11 +111,13 @@ export function HeroSection() {
 
               {/* CTA */}
               <div className="mt-8 text-center">
-                <Link href="/translate">
-                  <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90">
-                    Try It Now - Free
-                  </Button>
-                </Link>
+                <Button
+                  size="lg"
+                  onClick={handleStartTranslating}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90"
+                >
+                  Try It Now - Free
+                </Button>
               </div>
             </div>
           </Card>

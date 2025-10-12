@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -14,10 +14,14 @@ import { track } from '@vercel/analytics'
 
 export default function AuthPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Get redirect URL from query params
+  const redirectTo = searchParams.get('redirect') || '/translate'
 
   async function handleSignUp(e: React.FormEvent) {
     e.preventDefault()
@@ -40,7 +44,7 @@ export default function AuthPage() {
         })
 
         alert('注册成功！请检查您的邮箱以验证账户。')
-        router.push('/translate')
+        router.push(redirectTo)
       }
     } catch (err) {
       console.error('Sign up error:', err)
@@ -69,7 +73,7 @@ export default function AuthPage() {
           user_id: data.user.id,
         })
 
-        router.push('/translate')
+        router.push(redirectTo)
       }
     } catch (err) {
       console.error('Sign in error:', err)

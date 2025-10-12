@@ -4,9 +4,22 @@ import { Button } from "@/components/ui/button"
 import { Languages, Menu, X } from "lucide-react"
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { supabase } from "@/lib/supabase/client"
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const router = useRouter()
+
+  async function handleStartTranslating() {
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (user) {
+      router.push('/translate')
+    } else {
+      router.push('/auth?redirect=/translate')
+    }
+  }
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-lg">
@@ -48,11 +61,13 @@ export function Header() {
               登录
             </Button>
           </Link>
-          <Link href="/translate">
-            <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
-              开始翻译
-            </Button>
-          </Link>
+          <Button
+            size="sm"
+            onClick={handleStartTranslating}
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
+          >
+            开始翻译
+          </Button>
         </div>
 
         {/* Mobile Menu Button */}
@@ -92,9 +107,15 @@ export function Header() {
                   登录
                 </Button>
               </Link>
-              <Link href="/translate">
-                <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90">开始翻译</Button>
-              </Link>
+              <Button
+                onClick={() => {
+                  setMobileMenuOpen(false)
+                  handleStartTranslating()
+                }}
+                className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                开始翻译
+              </Button>
             </div>
           </div>
         </div>
