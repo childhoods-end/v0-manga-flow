@@ -87,11 +87,11 @@ function generateSvgOverlay(
     // Calculate optimal font size
     const fontSize = calculateFontSize(text, bbox)
 
-    // Split text into lines that fit the bounding box
-    const lines = wrapText(text, bbox.width * 0.9, fontSize)
+    // Split text into lines that fit the bounding box (use 95% width)
+    const lines = wrapText(text, bbox.width * 0.95, fontSize)
 
-    // Calculate line height (1.2x font size is standard)
-    const lineHeight = fontSize * 1.2
+    // Calculate line height (1.15x font size for tighter spacing)
+    const lineHeight = fontSize * 1.15
     const totalHeight = lines.length * lineHeight
 
     // Center text block vertically within bbox
@@ -181,23 +181,25 @@ function wrapText(text: string, maxWidth: number, fontSize: number): string[] {
  */
 function calculateFontSize(text: string, bbox: BoundingBox): number {
   const charCount = text.length
-  const availableWidth = bbox.width * 0.9 // 90% to leave some padding
-  const availableHeight = bbox.height * 0.9
+  // Increase usable area to 95% (reduce padding to 5%)
+  const availableWidth = bbox.width * 0.95
+  const availableHeight = bbox.height * 0.95
 
-  // Initial estimate based on area and character count
-  let fontSize = Math.sqrt((bbox.width * bbox.height) / charCount) * 1.8
+  // More aggressive initial estimate - increased multiplier from 1.8 to 2.2
+  let fontSize = Math.sqrt((bbox.width * bbox.height) / charCount) * 2.2
 
   // For Chinese/Japanese characters, they tend to be wider
   const hasCJK = /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]/.test(text)
   if (hasCJK) {
-    // CJK characters need more space
-    fontSize *= 0.85
+    // Slightly reduce for CJK but less aggressive than before
+    fontSize *= 0.9
   }
 
   // Estimate text dimensions at this font size
-  // Rough approximation: char width ≈ fontSize * 0.6 for latin, fontSize * 1.0 for CJK
-  const avgCharWidth = hasCJK ? fontSize * 1.0 : fontSize * 0.6
-  const lineHeight = fontSize * 1.2
+  // Adjusted: CJK char width is about 0.95 of fontSize, not 1.0
+  const avgCharWidth = hasCJK ? fontSize * 0.95 : fontSize * 0.6
+  // Tighter line height: 1.15 instead of 1.2
+  const lineHeight = fontSize * 1.15
 
   // Estimate how many characters fit per line
   const charsPerLine = Math.floor(availableWidth / avgCharWidth)
@@ -207,7 +209,8 @@ function calculateFontSize(text: string, bbox: BoundingBox): number {
   // If text would overflow height, reduce font size
   if (estimatedHeight > availableHeight) {
     const heightRatio = availableHeight / estimatedHeight
-    fontSize *= Math.sqrt(heightRatio) // Use sqrt for gentler scaling
+    // More aggressive scaling: direct ratio instead of sqrt
+    fontSize *= heightRatio * 0.95
   }
 
   // If text would overflow width (very long single words), reduce font size
@@ -215,12 +218,12 @@ function calculateFontSize(text: string, bbox: BoundingBox): number {
   const maxWordWidth = maxWordLength * avgCharWidth
   if (maxWordWidth > availableWidth) {
     const widthRatio = availableWidth / maxWordWidth
-    fontSize *= widthRatio
+    fontSize *= widthRatio * 0.95
   }
 
   // Clamp between reasonable limits
-  // Min: 8px (readable minimum), Max: 72px (for very short text in large bubbles)
-  fontSize = Math.max(8, Math.min(fontSize, 72))
+  // Min: 10px (slightly larger minimum), Max: 80px (allow larger fonts)
+  fontSize = Math.max(10, Math.min(fontSize, 80))
 
   return Math.floor(fontSize)
 }
