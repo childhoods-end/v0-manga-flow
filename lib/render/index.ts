@@ -84,37 +84,46 @@ function generateSvgOverlay(
       `)
     }
 
-    // Calculate font size to fit the bounding box
+    // Calculate optimal font size
     const fontSize = calculateFontSize(text, bbox)
 
-    // Handle vertical text
-    const transform = block.is_vertical
-      ? `translate(${bbox.x + bbox.width / 2}, ${bbox.y}) rotate(0)`
-      : `translate(${bbox.x}, ${bbox.y + bbox.height / 2})`
+    // Split text into lines that fit the bounding box
+    const lines = wrapText(text, bbox.width * 0.9, fontSize)
+
+    // Calculate line height (1.2x font size is standard)
+    const lineHeight = fontSize * 1.2
+    const totalHeight = lines.length * lineHeight
+
+    // Center text block vertically within bbox
+    const startY = bbox.y + (bbox.height - totalHeight) / 2 + lineHeight / 2
 
     // Render text with optional stroke
     const strokeAttrs = options.strokeWidth
       ? `stroke="${options.strokeColor || 'black'}" stroke-width="${options.strokeWidth}"`
       : ''
 
-    const textElement = `
-      <text
-        x="0"
-        y="0"
-        font-family="${block.font_family || 'Arial, sans-serif'}"
-        font-size="${fontSize}"
-        text-anchor="${block.text_align || 'middle'}"
-        dominant-baseline="middle"
-        fill="black"
-        ${strokeAttrs}
-        transform="${transform}"
-        writing-mode="${block.is_vertical ? 'tb' : 'lr'}"
-      >
-        ${escapeXml(text)}
-      </text>
-    `
+    // Render each line
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      const yPos = startY + i * lineHeight
 
-    elements.push(textElement)
+      const textElement = `
+        <text
+          x="${bbox.x + bbox.width / 2}"
+          y="${yPos}"
+          font-family="${block.font_family || 'Arial, Noto Sans CJK SC, sans-serif'}"
+          font-size="${fontSize}"
+          text-anchor="middle"
+          dominant-baseline="middle"
+          fill="black"
+          ${strokeAttrs}
+        >
+          ${escapeXml(line)}
+        </text>
+      `
+
+      elements.push(textElement)
+    }
   }
 
   return `
@@ -125,17 +134,93 @@ function generateSvgOverlay(
 }
 
 /**
+ * Wrap text into multiple lines that fit within the specified width
+ */
+function wrapText(text: string, maxWidth: number, fontSize: number): string[] {
+  const hasCJK = /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]/.test(text)
+  const avgCharWidth = hasCJK ? fontSize * 1.0 : fontSize * 0.6
+  const maxCharsPerLine = Math.floor(maxWidth / avgCharWidth)
+
+  if (maxCharsPerLine <= 0) return [text]
+
+  const lines: string[] = []
+  let currentLine = ''
+
+  // Split by existing line breaks first
+  const paragraphs = text.split(/\n/)
+
+  for (const paragraph of paragraphs) {
+    const words = paragraph.split(/(\s+)/)
+
+    for (const word of words) {
+      const testLine = currentLine + word
+      const estimatedWidth = testLine.length * avgCharWidth
+
+      if (estimatedWidth > maxWidth && currentLine.length > 0) {
+        // Line would be too long, push current line and start new one
+        lines.push(currentLine.trim())
+        currentLine = word
+      } else {
+        currentLine += word
+      }
+    }
+
+    // Push remaining text as a line
+    if (currentLine.trim()) {
+      lines.push(currentLine.trim())
+      currentLine = ''
+    }
+  }
+
+  return lines.length > 0 ? lines : [text]
+}
+
+/**
  * Calculate optimal font size to fit text in bounding box
+ * Uses iterative approach to maximize font size while fitting content
  */
 function calculateFontSize(text: string, bbox: BoundingBox): number {
   const charCount = text.length
-  const area = bbox.width * bbox.height
+  const availableWidth = bbox.width * 0.9 // 90% to leave some padding
+  const availableHeight = bbox.height * 0.9
 
-  // Simple heuristic: scale font size based on available area
-  let fontSize = Math.sqrt(area / charCount) * 1.5
+  // Initial estimate based on area and character count
+  let fontSize = Math.sqrt((bbox.width * bbox.height) / charCount) * 1.8
+
+  // For Chinese/Japanese characters, they tend to be wider
+  const hasCJK = /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]/.test(text)
+  if (hasCJK) {
+    // CJK characters need more space
+    fontSize *= 0.85
+  }
+
+  // Estimate text dimensions at this font size
+  // Rough approximation: char width ≈ fontSize * 0.6 for latin, fontSize * 1.0 for CJK
+  const avgCharWidth = hasCJK ? fontSize * 1.0 : fontSize * 0.6
+  const lineHeight = fontSize * 1.2
+
+  // Estimate how many characters fit per line
+  const charsPerLine = Math.floor(availableWidth / avgCharWidth)
+  const estimatedLines = Math.ceil(charCount / charsPerLine)
+  const estimatedHeight = estimatedLines * lineHeight
+
+  // If text would overflow height, reduce font size
+  if (estimatedHeight > availableHeight) {
+    const heightRatio = availableHeight / estimatedHeight
+    fontSize *= Math.sqrt(heightRatio) // Use sqrt for gentler scaling
+  }
+
+  // If text would overflow width (very long single words), reduce font size
+  const maxWordLength = Math.max(...text.split(/\s+/).map(w => w.length))
+  const maxWordWidth = maxWordLength * avgCharWidth
+  if (maxWordWidth > availableWidth) {
+    const widthRatio = availableWidth / maxWordWidth
+    fontSize *= widthRatio
+  }
 
   // Clamp between reasonable limits
-  fontSize = Math.max(10, Math.min(fontSize, 48))
+  // Min: 8px (readable minimum), Max: 72px (for very short text in large bubbles)
+  fontSize = Math.max(8, Math.min(fontSize, 72))
 
   return Math.floor(fontSize)
 }
