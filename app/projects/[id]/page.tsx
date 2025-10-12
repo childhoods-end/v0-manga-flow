@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, Loader2, CheckCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
+import { track } from '@vercel/analytics'
 
 export default function ProjectPage() {
   const params = useParams()
@@ -113,6 +114,15 @@ export default function ProjectPage() {
             if (statusData.status === 'completed') {
               clearInterval(pollInterval)
               setTranslationProgress('Translation completed!')
+
+              // Track translation completion
+              const user = await supabase.auth.getUser()
+              track('translation_completed', {
+                user_id: user.data.user?.id,
+                project_id: projectId,
+                page_count: total,
+              })
+
               setTimeout(() => {
                 loadProject()
                 setIsTranslating(false)
@@ -252,6 +262,14 @@ export default function ProjectPage() {
         window.URL.revokeObjectURL(url)
         if (a.parentNode) document.body.removeChild(a)
       }, 100)
+
+      // Track download
+      const user = await supabase.auth.getUser()
+      track('translation_downloaded', {
+        user_id: user.data.user?.id,
+        project_id: projectId,
+        page_count: pages.length,
+      })
 
       setTranslationProgress('')
     } catch (err) {

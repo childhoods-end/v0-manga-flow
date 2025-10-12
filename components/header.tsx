@@ -43,12 +43,16 @@ export function Header() {
 
         {/* Auth Buttons */}
         <div className="hidden items-center gap-3 md:flex">
-          <Button variant="ghost" size="sm">
-            Log in
-          </Button>
-          <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
-            Sign up
-          </Button>
+          <Link href="/auth">
+            <Button variant="ghost" size="sm">
+              登录
+            </Button>
+          </Link>
+          <Link href="/translate">
+            <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
+              开始翻译
+            </Button>
+          </Link>
         </div>
 
         {/* Mobile Menu Button */}
@@ -83,10 +87,14 @@ export function Header() {
               Pricing
             </Link>
             <div className="flex flex-col gap-2 pt-4">
-              <Button variant="outline" className="w-full bg-transparent">
-                Log in
-              </Button>
-              <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90">Sign up</Button>
+              <Link href="/auth">
+                <Button variant="outline" className="w-full bg-transparent">
+                  登录
+                </Button>
+              </Link>
+              <Link href="/translate">
+                <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90">开始翻译</Button>
+              </Link>
             </div>
           </div>
         </div>

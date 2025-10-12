@@ -1,12 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Upload, ArrowLeft, Loader2 } from 'lucide-react'
+import { Upload, ArrowLeft, Loader2, LogOut, User } from 'lucide-react'
 import Link from 'next/link'
 import { SUPPORTED_LANGUAGES, CONTENT_RATINGS } from '@/lib/constants'
+import { supabase } from '@/lib/supabase/client'
+import { track } from '@vercel/analytics'
 
 export default function TranslatePage() {
   const router = useRouter()
@@ -18,6 +20,16 @@ export default function TranslatePage() {
   const [targetLang, setTargetLang] = useState('en')
   const [contentRating, setContentRating] = useState('general')
   const [rightsDeclaration, setRightsDeclaration] = useState(false)
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+
+  useEffect(() => {
+    // Get current user
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        setUserEmail(user.email || null)
+      }
+    })
+  }, [])
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = event.target.files
@@ -99,6 +111,16 @@ export default function TranslatePage() {
 
       const result = JSON.parse(responseText)
 
+      // Track translation upload
+      const user = await supabase.auth.getUser()
+      track('translation_uploaded', {
+        user_id: user.data.user?.id,
+        project_id: result.projectId,
+        image_count: files.length,
+        source_lang: sourceLang,
+        target_lang: targetLang,
+      })
+
       // Navigate to project page
       if (result.projectId) {
         router.push(`/projects/${result.projectId}`)
@@ -119,6 +141,12 @@ export default function TranslatePage() {
     }
   }
 
+  async function handleSignOut() {
+    await supabase.auth.signOut()
+    track('user_logged_out')
+    router.push('/')
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-blue-950 dark:to-indigo-950">
       {/* Header */}
@@ -127,12 +155,24 @@ export default function TranslatePage() {
           <Link href="/" className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
             MangaFlow
           </Link>
-          <Link href="/">
-            <Button variant="outline" size="sm">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Home
+          <div className="flex items-center gap-3">
+            {userEmail && (
+              <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                <User className="w-4 h-4" />
+                <span>{userEmail}</span>
+              </div>
+            )}
+            <Button variant="outline" size="sm" onClick={handleSignOut}>
+              <LogOut className="w-4 h-4 mr-2" />
+              登出
             </Button>
-          </Link>
+            <Link href="/">
+              <Button variant="outline" size="sm">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                返回首页
+              </Button>
+            </Link>
+          </div>
         </div>
       </nav>
 
