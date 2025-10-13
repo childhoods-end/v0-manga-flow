@@ -227,7 +227,21 @@ function calculateFontSize(text: string, bbox: BoundingBox): number {
   // Min: 12px (readable), Max: 100px (very short text in large bubbles)
   fontSize = Math.max(12, Math.min(fontSize, 100))
 
-  return Math.floor(fontSize)
+  const finalFontSize = Math.floor(fontSize)
+
+  // DEBUG: Log font size calculations
+  console.log('📏 Font Size Calculation:', {
+    text: text.substring(0, 30) + (text.length > 30 ? '...' : ''),
+    charCount,
+    bbox: { w: bbox.width, h: bbox.height, area: bbox.width * bbox.height },
+    hasCJK,
+    initialFontSize: Math.floor(Math.sqrt((bbox.width * bbox.height) / charCount) * 2.8),
+    finalFontSize,
+    estimatedLines,
+    lineHeight: Math.floor(lineHeight),
+  })
+
+  return finalFontSize
 }
 
 /**
