@@ -75,7 +75,7 @@ export function TextBlockEditor({
       drawCanvas(img, scaleX)
     }
     img.src = imageUrl
-  }, [imageUrl, textBlocks, selectedBlock, editedBbox])
+  }, [imageUrl, textBlocks, selectedBlock, editedBbox, editedText, editedFontSize])
 
   function drawCanvas(img: HTMLImageElement, currentScale: number) {
     const canvas = canvasRef.current
@@ -91,6 +91,8 @@ export function TextBlockEditor({
     textBlocks.forEach((block) => {
       const isSelected = selectedBlock?.id === block.id
       const bbox = isSelected && editedBbox ? editedBbox : block.bbox
+      const displayText = isSelected && editedText ? editedText : (block.translated_text || block.ocr_text || '')
+      const fontSize = isSelected && editedFontSize ? editedFontSize : (block.font_size || 16)
 
       // Scale bbox to canvas size
       const scaledBbox = {
@@ -100,14 +102,51 @@ export function TextBlockEditor({
         height: bbox.height * currentScale,
       }
 
+      // Draw white background (mask)
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.95)'
+      ctx.fillRect(scaledBbox.x, scaledBbox.y, scaledBbox.width, scaledBbox.height)
+
+      // Draw text
+      if (displayText) {
+        const scaledFontSize = fontSize * currentScale
+        ctx.font = `${scaledFontSize}px "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "SimHei", Arial, sans-serif`
+        ctx.fillStyle = '#000000'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+
+        // Simple text wrapping
+        const maxWidth = scaledBbox.width * 0.95
+        const words = displayText.split('')
+        const lines: string[] = []
+        let currentLine = ''
+
+        for (const char of words) {
+          const testLine = currentLine + char
+          const metrics = ctx.measureText(testLine)
+          if (metrics.width > maxWidth && currentLine.length > 0) {
+            lines.push(currentLine)
+            currentLine = char
+          } else {
+            currentLine = testLine
+          }
+        }
+        if (currentLine) lines.push(currentLine)
+
+        // Draw lines centered
+        const lineHeight = scaledFontSize * 1.2
+        const totalHeight = lines.length * lineHeight
+        const startY = scaledBbox.y + (scaledBbox.height - totalHeight) / 2 + lineHeight / 2
+
+        lines.forEach((line, i) => {
+          const y = startY + i * lineHeight
+          ctx.fillText(line, scaledBbox.x + scaledBbox.width / 2, y)
+        })
+      }
+
       // Draw bounding box
       ctx.strokeStyle = isSelected ? '#3b82f6' : '#10b981'
       ctx.lineWidth = isSelected ? 3 : 2
       ctx.strokeRect(scaledBbox.x, scaledBbox.y, scaledBbox.width, scaledBbox.height)
-
-      // Draw semi-transparent background
-      ctx.fillStyle = isSelected ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.05)'
-      ctx.fillRect(scaledBbox.x, scaledBbox.y, scaledBbox.width, scaledBbox.height)
 
       // Draw resize handle for selected block
       if (isSelected) {
