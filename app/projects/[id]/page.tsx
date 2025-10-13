@@ -65,12 +65,6 @@ export default function ProjectPage() {
   async function handleStartTranslation() {
     if (!project || isTranslating) return
 
-    const confirmed = confirm(
-      `Start translation for ${pages.length} page(s)?\n\nThis will use AI to detect and translate text.`
-    )
-
-    if (!confirmed) return
-
     setIsTranslating(true)
     setTranslationProgress('Creating translation job...')
 
