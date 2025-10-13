@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Slider } from '@/components/ui/slider'
-import { X, Save, RotateCcw } from 'lucide-react'
+import { X, Save, RotateCcw, Trash2 } from 'lucide-react'
 
 interface BoundingBox {
   x: number
@@ -291,6 +291,35 @@ export function TextBlockEditor({
     setEditedBbox(selectedBlock.bbox)
   }
 
+  async function handleDelete() {
+    if (!selectedBlock) return
+
+    const confirmed = confirm('确定要删除这个文本块吗？删除后将恢复为原图效果。')
+    if (!confirmed) return
+
+    setSaving(true)
+    try {
+      await onSave(selectedBlock.id, {
+        translated_text: '', // 清空翻译文本
+        font_size: 0,
+      })
+
+      // Update local state - remove from display
+      const updatedBlocks = textBlocks.map((block) =>
+        block.id === selectedBlock.id
+          ? { ...block, translated_text: '', font_size: 0 }
+          : block
+      )
+      setSelectedBlock(null)
+      alert('删除成功')
+    } catch (error) {
+      console.error('Failed to delete:', error)
+      alert('删除失败，请重试')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <Card className="w-full max-w-7xl max-h-[90vh] flex flex-col">
@@ -403,13 +432,24 @@ export function TextBlockEditor({
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
-                    <Button onClick={handleSave} disabled={saving} className="flex-1">
-                      <Save className="w-4 h-4 mr-2" />
-                      {saving ? '保存中...' : '保存'}
-                    </Button>
-                    <Button onClick={handleReset} variant="outline" size="sm">
-                      <RotateCcw className="w-4 h-4" />
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <Button onClick={handleSave} disabled={saving} className="flex-1">
+                        <Save className="w-4 h-4 mr-2" />
+                        {saving ? '保存中...' : '保存'}
+                      </Button>
+                      <Button onClick={handleReset} variant="outline" size="sm">
+                        <RotateCcw className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <Button
+                      onClick={handleDelete}
+                      disabled={saving}
+                      variant="destructive"
+                      className="w-full"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      删除文本块
                     </Button>
                   </div>
 

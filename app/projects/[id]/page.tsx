@@ -731,7 +731,7 @@ export default function ProjectPage() {
       {editingPage && (
         <TextBlockEditor
           pageId={editingPage.id}
-          imageUrl={editingPage.processed_blob_url || editingPage.original_blob_url}
+          imageUrl={editingPage.original_blob_url}
           textBlocks={editingTextBlocks}
           onSave={handleSaveTextBlock}
           onClose={handleCloseEditor}
