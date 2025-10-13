@@ -206,30 +206,67 @@ export async function POST(request: NextRequest) {
         console.log(`Saved ${textBlocksToInsert.length} text blocks to database`)
 
         // Render the translated page immediately
-        console.log(`Rendering page ${page.id} with ${textBlocksToInsert.length} text blocks`)
+        console.log(`🎨 Starting render for page ${page.id} with ${textBlocksToInsert.length} text blocks`)
+        console.log(`Image buffer size: ${imageBuffer.length} bytes`)
+
         try {
+          const renderStartTime = Date.now()
+
           const renderedBuffer = await renderPage(
             imageBuffer,
             textBlocksToInsert as any,
             { maskOriginalText: true }
           )
 
+          const renderElapsed = Date.now() - renderStartTime
+          console.log(`✅ Render completed in ${renderElapsed}ms, output size: ${renderedBuffer.length} bytes`)
+
           // Upload rendered image to Vercel Blob
+          console.log(`📤 Uploading rendered image to Vercel Blob...`)
+          const uploadStartTime = Date.now()
+
           const renderedBlob = await put(
             `rendered/${project.id}/${page.id}.png`,
             renderedBuffer,
             { access: 'public' }
           )
 
+          const uploadElapsed = Date.now() - uploadStartTime
+          console.log(`✅ Upload completed in ${uploadElapsed}ms: ${renderedBlob.url}`)
+
           // Update page with rendered URL
-          await supabaseAdmin
+          const { error: updateError } = await supabaseAdmin
             .from('pages')
             .update({ processed_blob_url: renderedBlob.url })
             .eq('id', page.id)
 
-          console.log(`Rendered page ${page.id} successfully: ${renderedBlob.url}`)
-        } catch (renderError) {
-          console.error(`Failed to render page ${page.id}:`, renderError)
+          if (updateError) {
+            console.error(`❌ Failed to update page in database:`, updateError)
+            throw updateError
+          }
+
+          console.log(`✅ Page ${page.id} fully processed and saved`)
+        } catch (renderError: any) {
+          console.error(`❌ Render/upload failed for page ${page.id}:`)
+          console.error(`Error type: ${renderError.constructor.name}`)
+          console.error(`Error message: ${renderError.message}`)
+          console.error(`Error stack:`, renderError.stack)
+
+          // Save error to database for debugging
+          try {
+            await supabaseAdmin
+              .from('pages')
+              .update({
+                metadata: {
+                  render_error: renderError.message,
+                  render_error_time: new Date().toISOString()
+                }
+              })
+              .eq('id', page.id)
+          } catch (dbError) {
+            console.error('Failed to save error to database:', dbError)
+          }
+
           // Don't fail the whole job if rendering fails
         }
       } else {
