@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { translateBlocks, TranslationBlock } from '@/lib/translate'
 import { performOCR } from '@/lib/ocr'
+import { renderPage } from '@/lib/render'
+import { put } from '@vercel/blob'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60 // Max duration on Vercel Pro plan
@@ -202,6 +204,34 @@ export async function POST(request: NextRequest) {
           .insert(textBlocksToInsert)
 
         console.log(`Saved ${textBlocksToInsert.length} text blocks to database`)
+
+        // Render the translated page immediately
+        console.log(`Rendering page ${page.id} with ${textBlocksToInsert.length} text blocks`)
+        try {
+          const renderedBuffer = await renderPage(
+            imageBuffer,
+            textBlocksToInsert as any,
+            { maskOriginalText: true }
+          )
+
+          // Upload rendered image to Vercel Blob
+          const renderedBlob = await put(
+            `rendered/${project.id}/${page.id}.png`,
+            renderedBuffer,
+            { access: 'public' }
+          )
+
+          // Update page with rendered URL
+          await supabaseAdmin
+            .from('pages')
+            .update({ processed_blob_url: renderedBlob.url })
+            .eq('id', page.id)
+
+          console.log(`Rendered page ${page.id} successfully: ${renderedBlob.url}`)
+        } catch (renderError) {
+          console.error(`Failed to render page ${page.id}:`, renderError)
+          // Don't fail the whole job if rendering fails
+        }
       } else {
         console.log('No text found on this page')
       }
