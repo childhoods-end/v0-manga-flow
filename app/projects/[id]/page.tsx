@@ -54,6 +54,33 @@ export default function ProjectPage() {
       if (pagesError) throw pagesError
 
       setPages(pagesData || [])
+
+      // Debug: Check if pages have processed URLs
+      console.log('📊 项目状态:', {
+        status: (projectData as any)?.status,
+        totalPages: pagesData?.length || 0,
+        pagesWithRendered: pagesData?.filter((p: any) => p.processed_blob_url).length || 0,
+      })
+
+      // Auto-render if translation is complete but no rendered images
+      if ((projectData as any)?.status === 'ready' && pagesData && pagesData.length > 0) {
+        const missingRendered = pagesData.filter((p: any) => !p.processed_blob_url)
+        if (missingRendered.length > 0) {
+          console.warn(`⚠️ ${missingRendered.length} pages missing rendered images. Auto-rendering...`)
+          // Trigger rendering for missing pages
+          for (const page of missingRendered) {
+            fetch(`/api/debug-render/${(page as any).id}`, { method: 'POST' })
+              .then(r => r.json())
+              .then(result => {
+                if (result.success) {
+                  console.log(`✅ Auto-rendered page ${(page as any).page_index + 1}`)
+                  loadProject() // Reload to get updated URLs
+                }
+              })
+              .catch(err => console.error('Auto-render failed:', err))
+          }
+        }
+      }
     } catch (err) {
       console.error('Failed to load project:', err)
       setError(err instanceof Error ? err.message : 'Failed to load project')
