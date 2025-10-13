@@ -87,11 +87,11 @@ function generateSvgOverlay(
     // Calculate optimal font size
     const fontSize = calculateFontSize(text, bbox)
 
-    // Split text into lines that fit the bounding box (use 95% width)
-    const lines = wrapText(text, bbox.width * 0.95, fontSize)
+    // Split text into lines that fit the bounding box (use 98% width)
+    const lines = wrapText(text, bbox.width * 0.98, fontSize)
 
-    // Calculate line height (1.15x font size for tighter spacing)
-    const lineHeight = fontSize * 1.15
+    // Calculate line height (1.1x font size for tighter spacing)
+    const lineHeight = fontSize * 1.1
     const totalHeight = lines.length * lineHeight
 
     // Center text block vertically within bbox
@@ -181,49 +181,51 @@ function wrapText(text: string, maxWidth: number, fontSize: number): string[] {
  */
 function calculateFontSize(text: string, bbox: BoundingBox): number {
   const charCount = text.length
-  // Increase usable area to 95% (reduce padding to 5%)
-  const availableWidth = bbox.width * 0.95
-  const availableHeight = bbox.height * 0.95
+  if (charCount === 0) return 16
 
-  // More aggressive initial estimate - increased multiplier from 1.8 to 2.2
-  let fontSize = Math.sqrt((bbox.width * bbox.height) / charCount) * 2.2
+  // Use 98% of available space (minimal padding)
+  const availableWidth = bbox.width * 0.98
+  const availableHeight = bbox.height * 0.98
 
-  // For Chinese/Japanese characters, they tend to be wider
+  // Very aggressive initial estimate - maximize font size
+  let fontSize = Math.sqrt((bbox.width * bbox.height) / charCount) * 2.8
+
+  // For Chinese/Japanese characters
   const hasCJK = /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]/.test(text)
-  if (hasCJK) {
-    // Slightly reduce for CJK but less aggressive than before
-    fontSize *= 0.9
-  }
 
-  // Estimate text dimensions at this font size
-  // Adjusted: CJK char width is about 0.95 of fontSize, not 1.0
-  const avgCharWidth = hasCJK ? fontSize * 0.95 : fontSize * 0.6
-  // Tighter line height: 1.15 instead of 1.2
-  const lineHeight = fontSize * 1.15
+  // CJK characters are roughly square (width ≈ height ≈ fontSize)
+  // Latin characters are narrower (width ≈ 0.5-0.6 of fontSize)
+  const avgCharWidth = hasCJK ? fontSize * 1.0 : fontSize * 0.55
 
-  // Estimate how many characters fit per line
-  const charsPerLine = Math.floor(availableWidth / avgCharWidth)
+  // Tight line height for better space utilization
+  const lineHeight = fontSize * 1.1
+
+  // Calculate how text would fit
+  const charsPerLine = Math.max(1, Math.floor(availableWidth / avgCharWidth))
   const estimatedLines = Math.ceil(charCount / charsPerLine)
   const estimatedHeight = estimatedLines * lineHeight
 
-  // If text would overflow height, reduce font size
+  // If text would overflow, scale down proportionally
   if (estimatedHeight > availableHeight) {
     const heightRatio = availableHeight / estimatedHeight
-    // More aggressive scaling: direct ratio instead of sqrt
-    fontSize *= heightRatio * 0.95
+    fontSize *= heightRatio
   }
 
-  // If text would overflow width (very long single words), reduce font size
-  const maxWordLength = Math.max(...text.split(/\s+/).map(w => w.length))
-  const maxWordWidth = maxWordLength * avgCharWidth
-  if (maxWordWidth > availableWidth) {
-    const widthRatio = availableWidth / maxWordWidth
-    fontSize *= widthRatio * 0.95
+  // Check for very long words that wouldn't fit
+  const words = text.split(/\s+/)
+  if (words.length > 0) {
+    const maxWordLength = Math.max(...words.map(w => w.length))
+    const maxWordWidth = maxWordLength * avgCharWidth
+
+    if (maxWordWidth > availableWidth) {
+      const widthRatio = availableWidth / maxWordWidth
+      fontSize *= widthRatio
+    }
   }
 
-  // Clamp between reasonable limits
-  // Min: 10px (slightly larger minimum), Max: 80px (allow larger fonts)
-  fontSize = Math.max(10, Math.min(fontSize, 80))
+  // Clamp to reasonable range
+  // Min: 12px (readable), Max: 100px (very short text in large bubbles)
+  fontSize = Math.max(12, Math.min(fontSize, 100))
 
   return Math.floor(fontSize)
 }
