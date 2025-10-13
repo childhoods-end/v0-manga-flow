@@ -84,8 +84,10 @@ function generateSvgOverlay(
       `)
     }
 
-    // Calculate optimal font size
-    const fontSize = calculateFontSize(text, bbox)
+    // Use custom font size if provided, otherwise calculate
+    const fontSize = block.font_size && block.font_size > 0
+      ? block.font_size
+      : calculateFontSize(text, bbox)
 
     // Split text into lines that fit the bounding box (use 98% width)
     const lines = wrapText(text, bbox.width * 0.98, fontSize)

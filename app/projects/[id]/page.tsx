@@ -5,9 +5,10 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft, Loader2, CheckCircle } from 'lucide-react'
+import { ArrowLeft, Loader2, CheckCircle, Edit } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { track } from '@vercel/analytics'
+import { TextBlockEditor } from '@/components/text-block-editor'
 
 export default function ProjectPage() {
   const params = useParams()
@@ -22,6 +23,9 @@ export default function ProjectPage() {
   const [translationProgress, setTranslationProgress] = useState<string>('')
   const [showTranslations, setShowTranslations] = useState(false)
   const [translations, setTranslations] = useState<any>(null)
+  const [editingPage, setEditingPage] = useState<any>(null)
+  const [editingTextBlocks, setEditingTextBlocks] = useState<any[]>([])
+  const [loadingEditor, setLoadingEditor] = useState(false)
 
   useEffect(() => {
     loadProject()
@@ -167,6 +171,43 @@ export default function ProjectPage() {
       console.error('Failed to load translations:', err)
       alert('Failed to load translations')
     }
+  }
+
+  async function handleEditPage(page: any) {
+    setLoadingEditor(true)
+    try {
+      const response = await fetch(`/api/pages/${page.id}/text-blocks`)
+      if (!response.ok) throw new Error('Failed to load text blocks')
+
+      const data = await response.json()
+      setEditingPage(page)
+      setEditingTextBlocks(data.textBlocks || [])
+    } catch (err) {
+      console.error('Failed to load text blocks:', err)
+      alert('加载文本块失败')
+    } finally {
+      setLoadingEditor(false)
+    }
+  }
+
+  async function handleSaveTextBlock(blockId: string, updates: any) {
+    const response = await fetch(`/api/text-blocks/${blockId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to save text block')
+    }
+
+    // Reload project to get updated rendered images
+    await loadProject()
+  }
+
+  function handleCloseEditor() {
+    setEditingPage(null)
+    setEditingTextBlocks([])
   }
 
   function wrapTextForCanvas(text: string, maxCharsPerLine: number): string[] {
@@ -547,13 +588,31 @@ export default function ProjectPage() {
             {pages.map((page) => (
               <Card key={page.id} className="overflow-hidden">
                 <CardContent className="p-0">
-                  <div className="aspect-[3/4] bg-slate-200 dark:bg-slate-800 relative">
-                    {page.original_blob_url && (
+                  <div className="aspect-[3/4] bg-slate-200 dark:bg-slate-800 relative group">
+                    {page.processed_blob_url ? (
+                      <img
+                        src={page.processed_blob_url}
+                        alt={`Page ${page.page_index + 1} (Translated)`}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : page.original_blob_url ? (
                       <img
                         src={page.original_blob_url}
                         alt={`Page ${page.page_index + 1}`}
                         className="w-full h-full object-cover"
                       />
+                    ) : null}
+                    {page.processed_blob_url && (
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <Button
+                          onClick={() => handleEditPage(page)}
+                          disabled={loadingEditor}
+                          className="bg-white text-black hover:bg-slate-100"
+                        >
+                          <Edit className="w-4 h-4 mr-2" />
+                          编辑文本
+                        </Button>
+                      </div>
                     )}
                   </div>
                   <div className="p-3">
@@ -561,6 +620,11 @@ export default function ProjectPage() {
                     <p className="text-xs text-muted-foreground">
                       {page.width} × {page.height}
                     </p>
+                    {page.processed_blob_url && (
+                      <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                        ✓ 已翻译
+                      </p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -641,6 +705,17 @@ export default function ProjectPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Text Block Editor */}
+      {editingPage && (
+        <TextBlockEditor
+          pageId={editingPage.id}
+          imageUrl={editingPage.original_blob_url}
+          textBlocks={editingTextBlocks}
+          onSave={handleSaveTextBlock}
+          onClose={handleCloseEditor}
+        />
+      )}
     </div>
   )
 }
