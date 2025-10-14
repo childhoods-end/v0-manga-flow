@@ -102,8 +102,8 @@ export function TextBlockEditor({
         height: bbox.height * currentScale,
       }
 
-      // Draw white background (mask)
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.95)'
+      // Draw white background (mask) - 100% opaque to hide any underlying text
+      ctx.fillStyle = '#FFFFFF'
       ctx.fillRect(scaledBbox.x, scaledBbox.y, scaledBbox.width, scaledBbox.height)
 
       // Draw text
@@ -294,9 +294,6 @@ export function TextBlockEditor({
   async function handleDelete() {
     if (!selectedBlock) return
 
-    const confirmed = confirm('确定要删除这个文本块吗？删除后将恢复为原图效果。')
-    if (!confirmed) return
-
     setSaving(true)
     try {
       await onSave(selectedBlock.id, {
@@ -304,18 +301,13 @@ export function TextBlockEditor({
         font_size: 0,
       })
 
-      // Update local state - remove from display
-      const updatedBlocks = textBlocks.map((block) =>
-        block.id === selectedBlock.id
-          ? { ...block, translated_text: '', font_size: 0 }
-          : block
-      )
+      // Close editor and reload page
       setSelectedBlock(null)
-      alert('删除成功')
+      setSaving(false)
+      onClose()
     } catch (error) {
       console.error('Failed to delete:', error)
       alert('删除失败，请重试')
-    } finally {
       setSaving(false)
     }
   }
