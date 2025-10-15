@@ -59,6 +59,22 @@ export function TextBlockEditor({
   const [scale, setScale] = useState(1)
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 })
 
+  // Calculate initial font size based on bbox dimensions
+  function calculateInitialFontSize(text: string, bbox: BoundingBox): number {
+    if (!text) return 16
+    const charCount = text.length
+    const availableWidth = bbox.width * 0.90
+    const availableHeight = bbox.height * 0.90
+
+    // Conservative initial estimate
+    let fontSize = Math.sqrt((bbox.width * bbox.height) / charCount) * 1.8
+
+    // Clamp to reasonable range
+    fontSize = Math.max(10, Math.min(fontSize, 60))
+
+    return Math.floor(fontSize)
+  }
+
   // Load image and draw on canvas
   useEffect(() => {
     const canvas = canvasRef.current
@@ -98,7 +114,10 @@ export function TextBlockEditor({
       const isSelected = selectedBlock?.id === block.id
       const bbox = block.bbox
       const displayText = block.translated_text || ''
-      const fontSize = block.font_size || 16
+      // Use stored font_size if valid, otherwise calculate from bbox and text
+      const fontSize = block.font_size && block.font_size > 0
+        ? block.font_size
+        : calculateInitialFontSize(displayText, bbox)
       const isVertical = block.is_vertical || false
 
       // Scale bbox to canvas size
@@ -109,11 +128,9 @@ export function TextBlockEditor({
         height: bbox.height * currentScale,
       }
 
-      // Draw white background (mask) only if there's text to show
-      if (displayText) {
-        ctx.fillStyle = '#FFFFFF'
-        ctx.fillRect(scaledBbox.x, scaledBbox.y, scaledBbox.width, scaledBbox.height)
-      }
+      // Always draw white background (mask) to cover original text
+      ctx.fillStyle = '#FFFFFF'
+      ctx.fillRect(scaledBbox.x, scaledBbox.y, scaledBbox.width, scaledBbox.height)
 
       // Draw text if available
       if (displayText) {
@@ -209,6 +226,11 @@ export function TextBlockEditor({
         y >= bbox.y &&
         y <= bbox.y + bbox.height
       ) {
+        // If font_size is 0 or missing, calculate initial value
+        if (!block.font_size || block.font_size === 0) {
+          const initialFontSize = calculateInitialFontSize(block.translated_text || '', block.bbox)
+          updateLocalBlock(block.id, { font_size: initialFontSize })
+        }
         setSelectedBlock(block)
         return
       }
@@ -519,7 +541,7 @@ export function TextBlockEditor({
                       className="w-full"
                     >
                       <Trash2 className="w-4 h-4 mr-2" />
-                      删除文本块
+                      {saving ? '删除中...' : '删除文本块'}
                     </Button>
                   </div>
 
