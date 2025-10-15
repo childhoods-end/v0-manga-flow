@@ -43,14 +43,16 @@ export function TextBlockEditor({
   onClose,
 }: TextBlockEditorProps) {
   const [selectedBlock, setSelectedBlock] = useState<TextBlock | null>(null)
-  const [editedText, setEditedText] = useState('')
-  const [editedFontSize, setEditedFontSize] = useState(16)
-  const [editedBbox, setEditedBbox] = useState<BoundingBox | null>(null)
-  const [editedIsVertical, setEditedIsVertical] = useState(false)
+  const [localTextBlocks, setLocalTextBlocks] = useState<TextBlock[]>(textBlocks)
   const [isDragging, setIsDragging] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [saving, setSaving] = useState(false)
+
+  // Sync textBlocks prop to local state
+  useEffect(() => {
+    setLocalTextBlocks(textBlocks)
+  }, [textBlocks])
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -79,7 +81,7 @@ export function TextBlockEditor({
       drawCanvas(img, scaleX)
     }
     img.src = imageUrl
-  }, [imageUrl, textBlocks, selectedBlock, editedBbox, editedText, editedFontSize, editedIsVertical])
+  }, [imageUrl, localTextBlocks, selectedBlock])
 
   function drawCanvas(img: HTMLImageElement, currentScale: number) {
     const canvas = canvasRef.current
@@ -92,13 +94,12 @@ export function TextBlockEditor({
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
 
     // Draw all text blocks
-    textBlocks.forEach((block) => {
+    localTextBlocks.forEach((block) => {
       const isSelected = selectedBlock?.id === block.id
-      const bbox = isSelected && editedBbox ? editedBbox : block.bbox
-      // Show translated text for all blocks, use edited text for selected block
-      const displayText = isSelected ? editedText : (block.translated_text || '')
-      const fontSize = isSelected ? editedFontSize : (block.font_size || 16)
-      const isVertical = isSelected ? editedIsVertical : (block.is_vertical || false)
+      const bbox = block.bbox
+      const displayText = block.translated_text || ''
+      const fontSize = block.font_size || 16
+      const isVertical = block.is_vertical || false
 
       // Scale bbox to canvas size
       const scaledBbox = {
@@ -200,7 +201,7 @@ export function TextBlockEditor({
     const y = (e.clientY - rect.top) / scale
 
     // Find clicked text block
-    for (const block of textBlocks) {
+    for (const block of localTextBlocks) {
       const bbox = block.bbox
       if (
         x >= bbox.x &&
@@ -209,14 +210,6 @@ export function TextBlockEditor({
         y <= bbox.y + bbox.height
       ) {
         setSelectedBlock(block)
-        setEditedText(block.translated_text || block.ocr_text || '')
-        // Use existing font_size if available, otherwise calculate from bbox
-        const initialFontSize = block.font_size && block.font_size > 0
-          ? block.font_size
-          : Math.floor(Math.min(block.bbox.width, block.bbox.height) * 0.6)
-        setEditedFontSize(initialFontSize)
-        setEditedBbox(block.bbox)
-        setEditedIsVertical(block.is_vertical || false)
         return
       }
     }
@@ -226,7 +219,7 @@ export function TextBlockEditor({
   }
 
   function handleCanvasMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
-    if (!selectedBlock || !editedBbox) return
+    if (!selectedBlock) return
 
     const canvas = canvasRef.current
     if (!canvas) return
@@ -235,13 +228,15 @@ export function TextBlockEditor({
     const x = (e.clientX - rect.left) / scale
     const y = (e.clientY - rect.top) / scale
 
+    const bbox = selectedBlock.bbox
+
     // Check if clicking resize handle
     const handleSize = 10 / scale
     if (
-      x >= editedBbox.x + editedBbox.width - handleSize &&
-      x <= editedBbox.x + editedBbox.width &&
-      y >= editedBbox.y + editedBbox.height - handleSize &&
-      y <= editedBbox.y + editedBbox.height
+      x >= bbox.x + bbox.width - handleSize &&
+      x <= bbox.x + bbox.width &&
+      y >= bbox.y + bbox.height - handleSize &&
+      y <= bbox.y + bbox.height
     ) {
       setIsResizing(true)
       setDragStart({ x: e.clientX, y: e.clientY })
@@ -250,39 +245,55 @@ export function TextBlockEditor({
 
     // Check if clicking inside bbox for dragging
     if (
-      x >= editedBbox.x &&
-      x <= editedBbox.x + editedBbox.width &&
-      y >= editedBbox.y &&
-      y <= editedBbox.y + editedBbox.height
+      x >= bbox.x &&
+      x <= bbox.x + bbox.width &&
+      y >= bbox.y &&
+      y <= bbox.y + bbox.height
     ) {
       setIsDragging(true)
-      setDragStart({ x: e.clientX - editedBbox.x * scale, y: e.clientY - editedBbox.y * scale })
+      setDragStart({ x: e.clientX - bbox.x * scale, y: e.clientY - bbox.y * scale })
     }
   }
 
   function handleCanvasMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
-    if (!selectedBlock || !editedBbox) return
+    if (!selectedBlock) return
 
     if (isDragging) {
       const newX = (e.clientX - dragStart.x) / scale
       const newY = (e.clientY - dragStart.y) / scale
 
-      setEditedBbox({
-        ...editedBbox,
-        x: Math.max(0, Math.min(newX, imageSize.width - editedBbox.width)),
-        y: Math.max(0, Math.min(newY, imageSize.height - editedBbox.height)),
-      })
+      const newBbox = {
+        ...selectedBlock.bbox,
+        x: Math.max(0, Math.min(newX, imageSize.width - selectedBlock.bbox.width)),
+        y: Math.max(0, Math.min(newY, imageSize.height - selectedBlock.bbox.height)),
+      }
+
+      updateLocalBlock(selectedBlock.id, { bbox: newBbox })
     } else if (isResizing) {
       const deltaX = (e.clientX - dragStart.x) / scale
       const deltaY = (e.clientY - dragStart.y) / scale
 
-      setEditedBbox({
-        ...editedBbox,
-        width: Math.max(20, editedBbox.width + deltaX),
-        height: Math.max(20, editedBbox.height + deltaY),
-      })
+      const newBbox = {
+        ...selectedBlock.bbox,
+        width: Math.max(20, selectedBlock.bbox.width + deltaX),
+        height: Math.max(20, selectedBlock.bbox.height + deltaY),
+      }
+
+      updateLocalBlock(selectedBlock.id, { bbox: newBbox })
       setDragStart({ x: e.clientX, y: e.clientY })
     }
+  }
+
+  function updateLocalBlock(blockId: string, updates: Partial<TextBlock>) {
+    setLocalTextBlocks(prev =>
+      prev.map(block =>
+        block.id === blockId ? { ...block, ...updates } : block
+      )
+    )
+    // Also update selectedBlock
+    setSelectedBlock(prev =>
+      prev && prev.id === blockId ? { ...prev, ...updates } : prev
+    )
   }
 
   function handleCanvasMouseUp() {
@@ -291,28 +302,16 @@ export function TextBlockEditor({
   }
 
   async function handleSave() {
-    if (!selectedBlock || !editedBbox) return
+    if (!selectedBlock) return
 
     setSaving(true)
     try {
       await onSave(selectedBlock.id, {
-        translated_text: editedText,
-        font_size: editedFontSize,
-        bbox: editedBbox,
-        is_vertical: editedIsVertical,
+        translated_text: selectedBlock.translated_text,
+        font_size: selectedBlock.font_size,
+        bbox: selectedBlock.bbox,
+        is_vertical: selectedBlock.is_vertical,
       })
-
-      // Update local text blocks state to reflect changes
-      const blockIndex = textBlocks.findIndex(b => b.id === selectedBlock.id)
-      if (blockIndex !== -1) {
-        textBlocks[blockIndex] = {
-          ...textBlocks[blockIndex],
-          translated_text: editedText,
-          font_size: editedFontSize,
-          bbox: editedBbox,
-          is_vertical: editedIsVertical,
-        }
-      }
 
       // Deselect block but keep editor open
       setSelectedBlock(null)
@@ -326,13 +325,18 @@ export function TextBlockEditor({
 
   function handleReset() {
     if (!selectedBlock) return
-    setEditedText(selectedBlock.translated_text || selectedBlock.ocr_text || '')
-    const initialFontSize = selectedBlock.font_size && selectedBlock.font_size > 0
-      ? selectedBlock.font_size
-      : Math.floor(Math.min(selectedBlock.bbox.width, selectedBlock.bbox.height) * 0.6)
-    setEditedFontSize(initialFontSize)
-    setEditedBbox(selectedBlock.bbox)
-    setEditedIsVertical(selectedBlock.is_vertical || false)
+
+    // Find original block from textBlocks prop
+    const originalBlock = textBlocks.find(b => b.id === selectedBlock.id)
+    if (!originalBlock) return
+
+    // Reset local block to original values
+    updateLocalBlock(selectedBlock.id, {
+      translated_text: originalBlock.translated_text,
+      font_size: originalBlock.font_size,
+      bbox: originalBlock.bbox,
+      is_vertical: originalBlock.is_vertical,
+    })
   }
 
   async function handleDelete() {
@@ -348,10 +352,7 @@ export function TextBlockEditor({
       await onDelete(selectedBlock.id)
 
       // Remove from local text blocks array
-      const blockIndex = textBlocks.findIndex(b => b.id === selectedBlock.id)
-      if (blockIndex !== -1) {
-        textBlocks.splice(blockIndex, 1)
-      }
+      setLocalTextBlocks(prev => prev.filter(b => b.id !== selectedBlock.id))
 
       // Deselect block but keep editor open
       setSelectedBlock(null)
@@ -390,7 +391,7 @@ export function TextBlockEditor({
               </div>
               <div className="mt-4 text-sm text-slate-600 dark:text-slate-400">
                 <p>💡 点击文本框选择，拖动移动位置，拖动右下角调整大小</p>
-                <p>已翻译: {textBlocks.filter(b => b.translated_text).length} / {textBlocks.length}</p>
+                <p>已翻译: {localTextBlocks.filter(b => b.translated_text).length} / {localTextBlocks.length}</p>
               </div>
             </div>
 
@@ -409,22 +410,22 @@ export function TextBlockEditor({
                     <Label htmlFor="translated-text">译文</Label>
                     <textarea
                       id="translated-text"
-                      value={editedText}
-                      onChange={(e) => setEditedText(e.target.value)}
+                      value={selectedBlock.translated_text || ''}
+                      onChange={(e) => updateLocalBlock(selectedBlock.id, { translated_text: e.target.value })}
                       className="w-full min-h-[100px] p-2 border rounded mt-1 text-sm"
                       placeholder="输入译文..."
                     />
                   </div>
 
                   <div>
-                    <Label htmlFor="font-size">字体大小: {editedFontSize}px</Label>
+                    <Label htmlFor="font-size">字体大小: {selectedBlock.font_size}px</Label>
                     <Slider
                       id="font-size"
                       min={8}
                       max={120}
                       step={1}
-                      value={[editedFontSize]}
-                      onValueChange={(value) => setEditedFontSize(value[0])}
+                      value={[selectedBlock.font_size || 16]}
+                      onValueChange={(value) => updateLocalBlock(selectedBlock.id, { font_size: value[0] })}
                       className="mt-2"
                     />
                   </div>
@@ -434,9 +435,9 @@ export function TextBlockEditor({
                     <div className="flex gap-2">
                       <Button
                         type="button"
-                        variant={!editedIsVertical ? 'default' : 'outline'}
+                        variant={!selectedBlock.is_vertical ? 'default' : 'outline'}
                         size="sm"
-                        onClick={() => setEditedIsVertical(false)}
+                        onClick={() => updateLocalBlock(selectedBlock.id, { is_vertical: false })}
                         className="flex-1"
                       >
                         <AlignLeft className="w-4 h-4 mr-1" />
@@ -444,9 +445,9 @@ export function TextBlockEditor({
                       </Button>
                       <Button
                         type="button"
-                        variant={editedIsVertical ? 'default' : 'outline'}
+                        variant={selectedBlock.is_vertical ? 'default' : 'outline'}
                         size="sm"
-                        onClick={() => setEditedIsVertical(true)}
+                        onClick={() => updateLocalBlock(selectedBlock.id, { is_vertical: true })}
                         className="flex-1"
                       >
                         <AlignVerticalJustifyCenter className="w-4 h-4 mr-1" />
@@ -463,8 +464,8 @@ export function TextBlockEditor({
                         <Input
                           id="bbox-x"
                           type="number"
-                          value={Math.round(editedBbox?.x || 0)}
-                          onChange={(e) => setEditedBbox(prev => prev ? { ...prev, x: Number(e.target.value) } : null)}
+                          value={Math.round(selectedBlock.bbox.x)}
+                          onChange={(e) => updateLocalBlock(selectedBlock.id, { bbox: { ...selectedBlock.bbox, x: Number(e.target.value) } })}
                           className="h-8 text-xs"
                         />
                       </div>
@@ -473,8 +474,8 @@ export function TextBlockEditor({
                         <Input
                           id="bbox-y"
                           type="number"
-                          value={Math.round(editedBbox?.y || 0)}
-                          onChange={(e) => setEditedBbox(prev => prev ? { ...prev, y: Number(e.target.value) } : null)}
+                          value={Math.round(selectedBlock.bbox.y)}
+                          onChange={(e) => updateLocalBlock(selectedBlock.id, { bbox: { ...selectedBlock.bbox, y: Number(e.target.value) } })}
                           className="h-8 text-xs"
                         />
                       </div>
@@ -483,8 +484,8 @@ export function TextBlockEditor({
                         <Input
                           id="bbox-width"
                           type="number"
-                          value={Math.round(editedBbox?.width || 0)}
-                          onChange={(e) => setEditedBbox(prev => prev ? { ...prev, width: Number(e.target.value) } : null)}
+                          value={Math.round(selectedBlock.bbox.width)}
+                          onChange={(e) => updateLocalBlock(selectedBlock.id, { bbox: { ...selectedBlock.bbox, width: Number(e.target.value) } })}
                           className="h-8 text-xs"
                         />
                       </div>
@@ -493,8 +494,8 @@ export function TextBlockEditor({
                         <Input
                           id="bbox-height"
                           type="number"
-                          value={Math.round(editedBbox?.height || 0)}
-                          onChange={(e) => setEditedBbox(prev => prev ? { ...prev, height: Number(e.target.value) } : null)}
+                          value={Math.round(selectedBlock.bbox.height)}
+                          onChange={(e) => updateLocalBlock(selectedBlock.id, { bbox: { ...selectedBlock.bbox, height: Number(e.target.value) } })}
                           className="h-8 text-xs"
                         />
                       </div>
