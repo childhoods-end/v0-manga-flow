@@ -219,12 +219,12 @@ function calculateFontSize(text: string, bbox: BoundingBox): number {
   const charCount = text.length
   if (charCount === 0) return 16
 
-  // Use 90% of available space for better padding
-  const availableWidth = bbox.width * 0.90
-  const availableHeight = bbox.height * 0.90
+  // Use 85% of available space for better padding
+  const availableWidth = bbox.width * 0.85
+  const availableHeight = bbox.height * 0.85
 
-  // Conservative initial estimate - ensure text fits within bubble
-  let fontSize = Math.sqrt((bbox.width * bbox.height) / charCount) * 1.8
+  // Very conservative initial estimate - ensure text fits well within bubble
+  let fontSize = Math.sqrt((bbox.width * bbox.height) / charCount) * 1.3
 
   // For Chinese/Japanese characters
   const hasCJK = /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]/.test(text)
@@ -260,8 +260,8 @@ function calculateFontSize(text: string, bbox: BoundingBox): number {
   }
 
   // Clamp to reasonable range
-  // Min: 10px (readable), Max: 60px (prevent text overflow)
-  fontSize = Math.max(10, Math.min(fontSize, 60))
+  // Min: 8px (readable), Max: 45px (prevent text overflow)
+  fontSize = Math.max(8, Math.min(fontSize, 45))
 
   const finalFontSize = Math.floor(fontSize)
 

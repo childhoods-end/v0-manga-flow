@@ -247,8 +247,10 @@ export default function ProjectPage() {
     // Remove from local text blocks state
     setEditingTextBlocks(prev => prev.filter(block => block.id !== blockId))
 
-    // Reload project to get updated rendered images
-    await loadProject()
+    // Wait a bit for server-side rendering to complete, then reload
+    setTimeout(async () => {
+      await loadProject()
+    }, 2000)
   }
 
   function handleCloseEditor() {

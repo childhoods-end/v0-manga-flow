@@ -63,14 +63,14 @@ export function TextBlockEditor({
   function calculateInitialFontSize(text: string, bbox: BoundingBox): number {
     if (!text) return 16
     const charCount = text.length
-    const availableWidth = bbox.width * 0.90
-    const availableHeight = bbox.height * 0.90
+    const availableWidth = bbox.width * 0.85
+    const availableHeight = bbox.height * 0.85
 
-    // Conservative initial estimate
-    let fontSize = Math.sqrt((bbox.width * bbox.height) / charCount) * 1.8
+    // Very conservative initial estimate - ensure text fits well within bubble
+    let fontSize = Math.sqrt((bbox.width * bbox.height) / charCount) * 1.3
 
     // Clamp to reasonable range
-    fontSize = Math.max(10, Math.min(fontSize, 60))
+    fontSize = Math.max(8, Math.min(fontSize, 45))
 
     return Math.floor(fontSize)
   }
