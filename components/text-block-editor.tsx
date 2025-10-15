@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Slider } from '@/components/ui/slider'
-import { X, Save, RotateCcw, Trash2 } from 'lucide-react'
+import { X, Save, RotateCcw, Trash2, AlignLeft, AlignVerticalJustifyCenter } from 'lucide-react'
 
 interface BoundingBox {
   x: number
@@ -22,6 +22,7 @@ interface TextBlock {
   translated_text: string | null
   font_size: number
   confidence: number
+  is_vertical: boolean
 }
 
 interface TextBlockEditorProps {
@@ -29,6 +30,7 @@ interface TextBlockEditorProps {
   imageUrl: string
   textBlocks: TextBlock[]
   onSave: (blockId: string, updates: Partial<TextBlock>) => Promise<void>
+  onDelete: (blockId: string) => Promise<void>
   onClose: () => void
 }
 
@@ -37,12 +39,14 @@ export function TextBlockEditor({
   imageUrl,
   textBlocks,
   onSave,
+  onDelete,
   onClose,
 }: TextBlockEditorProps) {
   const [selectedBlock, setSelectedBlock] = useState<TextBlock | null>(null)
   const [editedText, setEditedText] = useState('')
   const [editedFontSize, setEditedFontSize] = useState(16)
   const [editedBbox, setEditedBbox] = useState<BoundingBox | null>(null)
+  const [editedIsVertical, setEditedIsVertical] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
@@ -75,7 +79,7 @@ export function TextBlockEditor({
       drawCanvas(img, scaleX)
     }
     img.src = imageUrl
-  }, [imageUrl, textBlocks, selectedBlock, editedBbox, editedText, editedFontSize])
+  }, [imageUrl, textBlocks, selectedBlock, editedBbox, editedText, editedFontSize, editedIsVertical])
 
   function drawCanvas(img: HTMLImageElement, currentScale: number) {
     const canvas = canvasRef.current
@@ -91,9 +95,10 @@ export function TextBlockEditor({
     textBlocks.forEach((block) => {
       const isSelected = selectedBlock?.id === block.id
       const bbox = isSelected && editedBbox ? editedBbox : block.bbox
-      // Only show edited text for selected block, don't show stored translation for non-selected blocks
-      const displayText = isSelected ? editedText : ''
-      const fontSize = isSelected && editedFontSize ? editedFontSize : (block.font_size || 16)
+      // Show translated text for all blocks, use edited text for selected block
+      const displayText = isSelected ? editedText : (block.translated_text || '')
+      const fontSize = isSelected ? editedFontSize : (block.font_size || 16)
+      const isVertical = isSelected ? editedIsVertical : (block.is_vertical || false)
 
       // Scale bbox to canvas size
       const scaledBbox = {
@@ -103,45 +108,66 @@ export function TextBlockEditor({
         height: bbox.height * currentScale,
       }
 
-      // Draw white background (mask) - 100% opaque to hide any underlying text
-      ctx.fillStyle = '#FFFFFF'
-      ctx.fillRect(scaledBbox.x, scaledBbox.y, scaledBbox.width, scaledBbox.height)
+      // Draw white background (mask) only if there's text to show
+      if (displayText) {
+        ctx.fillStyle = '#FFFFFF'
+        ctx.fillRect(scaledBbox.x, scaledBbox.y, scaledBbox.width, scaledBbox.height)
+      }
 
-      // Draw text only if selected and has edited text
-      if (isSelected && displayText) {
+      // Draw text if available
+      if (displayText) {
         const scaledFontSize = fontSize * currentScale
         ctx.font = `${scaledFontSize}px "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "SimHei", Arial, sans-serif`
         ctx.fillStyle = '#000000'
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
 
-        // Simple text wrapping
-        const maxWidth = scaledBbox.width * 0.95
-        const words = displayText.split('')
-        const lines: string[] = []
-        let currentLine = ''
+        if (isVertical) {
+          // Vertical text rendering (top to bottom)
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
 
-        for (const char of words) {
-          const testLine = currentLine + char
-          const metrics = ctx.measureText(testLine)
-          if (metrics.width > maxWidth && currentLine.length > 0) {
-            lines.push(currentLine)
-            currentLine = char
-          } else {
-            currentLine = testLine
+          const chars = displayText.split('')
+          const charHeight = scaledFontSize * 1.1
+          const totalHeight = chars.length * charHeight
+          const startY = scaledBbox.y + (scaledBbox.height - totalHeight) / 2 + charHeight / 2
+          const centerX = scaledBbox.x + scaledBbox.width / 2
+
+          chars.forEach((char, i) => {
+            const y = startY + i * charHeight
+            ctx.fillText(char, centerX, y)
+          })
+        } else {
+          // Horizontal text rendering
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+
+          // Simple text wrapping
+          const maxWidth = scaledBbox.width * 0.95
+          const words = displayText.split('')
+          const lines: string[] = []
+          let currentLine = ''
+
+          for (const char of words) {
+            const testLine = currentLine + char
+            const metrics = ctx.measureText(testLine)
+            if (metrics.width > maxWidth && currentLine.length > 0) {
+              lines.push(currentLine)
+              currentLine = char
+            } else {
+              currentLine = testLine
+            }
           }
+          if (currentLine) lines.push(currentLine)
+
+          // Draw lines centered
+          const lineHeight = scaledFontSize * 1.2
+          const totalHeight = lines.length * lineHeight
+          const startY = scaledBbox.y + (scaledBbox.height - totalHeight) / 2 + lineHeight / 2
+
+          lines.forEach((line, i) => {
+            const y = startY + i * lineHeight
+            ctx.fillText(line, scaledBbox.x + scaledBbox.width / 2, y)
+          })
         }
-        if (currentLine) lines.push(currentLine)
-
-        // Draw lines centered
-        const lineHeight = scaledFontSize * 1.2
-        const totalHeight = lines.length * lineHeight
-        const startY = scaledBbox.y + (scaledBbox.height - totalHeight) / 2 + lineHeight / 2
-
-        lines.forEach((line, i) => {
-          const y = startY + i * lineHeight
-          ctx.fillText(line, scaledBbox.x + scaledBbox.width / 2, y)
-        })
       }
 
       // Draw bounding box
@@ -184,8 +210,13 @@ export function TextBlockEditor({
       ) {
         setSelectedBlock(block)
         setEditedText(block.translated_text || block.ocr_text || '')
-        setEditedFontSize(block.font_size || 16)
+        // Use existing font_size if available, otherwise calculate from bbox
+        const initialFontSize = block.font_size && block.font_size > 0
+          ? block.font_size
+          : Math.floor(Math.min(block.bbox.width, block.bbox.height) * 0.6)
+        setEditedFontSize(initialFontSize)
         setEditedBbox(block.bbox)
+        setEditedIsVertical(block.is_vertical || false)
         return
       }
     }
@@ -268,6 +299,7 @@ export function TextBlockEditor({
         translated_text: editedText,
         font_size: editedFontSize,
         bbox: editedBbox,
+        is_vertical: editedIsVertical,
       })
 
       // Update local text blocks state to reflect changes
@@ -278,6 +310,7 @@ export function TextBlockEditor({
           translated_text: editedText,
           font_size: editedFontSize,
           bbox: editedBbox,
+          is_vertical: editedIsVertical,
         }
       }
 
@@ -294,33 +327,30 @@ export function TextBlockEditor({
   function handleReset() {
     if (!selectedBlock) return
     setEditedText(selectedBlock.translated_text || selectedBlock.ocr_text || '')
-    setEditedFontSize(selectedBlock.font_size || 16)
+    const initialFontSize = selectedBlock.font_size && selectedBlock.font_size > 0
+      ? selectedBlock.font_size
+      : Math.floor(Math.min(selectedBlock.bbox.width, selectedBlock.bbox.height) * 0.6)
+    setEditedFontSize(initialFontSize)
     setEditedBbox(selectedBlock.bbox)
+    setEditedIsVertical(selectedBlock.is_vertical || false)
   }
 
   async function handleDelete() {
     if (!selectedBlock) return
 
-    if (!confirm('确定要删除此文本块的翻译吗？删除后将只保留原图。')) {
+    if (!confirm('确定要完全删除此文本块吗？删除后该区域将只显示原图，且无法编辑。')) {
       return
     }
 
     setSaving(true)
     try {
-      // Delete by setting translated_text to null and font_size to 0
-      await onSave(selectedBlock.id, {
-        translated_text: null,
-        font_size: 0,
-      })
+      // Completely delete the text block
+      await onDelete(selectedBlock.id)
 
-      // Update local text blocks state
+      // Remove from local text blocks array
       const blockIndex = textBlocks.findIndex(b => b.id === selectedBlock.id)
       if (blockIndex !== -1) {
-        textBlocks[blockIndex] = {
-          ...textBlocks[blockIndex],
-          translated_text: null,
-          font_size: 0,
-        }
+        textBlocks.splice(blockIndex, 1)
       }
 
       // Deselect block but keep editor open
@@ -397,6 +427,32 @@ export function TextBlockEditor({
                       onValueChange={(value) => setEditedFontSize(value[0])}
                       className="mt-2"
                     />
+                  </div>
+
+                  <div>
+                    <Label className="text-xs text-slate-500 mb-2 block">文本方向</Label>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant={!editedIsVertical ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setEditedIsVertical(false)}
+                        className="flex-1"
+                      >
+                        <AlignLeft className="w-4 h-4 mr-1" />
+                        横排
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={editedIsVertical ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setEditedIsVertical(true)}
+                        className="flex-1"
+                      >
+                        <AlignVerticalJustifyCenter className="w-4 h-4 mr-1" />
+                        竖排
+                      </Button>
+                    </div>
                   </div>
 
                   <div>

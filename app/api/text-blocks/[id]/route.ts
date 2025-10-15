@@ -18,7 +18,7 @@ export async function PATCH(
     const updates = await request.json()
 
     // Validate updates
-    const allowedFields = ['translated_text', 'font_size', 'bbox', 'status']
+    const allowedFields = ['translated_text', 'font_size', 'bbox', 'status', 'is_vertical']
     const filteredUpdates = Object.keys(updates)
       .filter(key => allowedFields.includes(key))
       .reduce((obj, key) => {
@@ -145,6 +145,106 @@ export async function GET(
     return NextResponse.json(block)
   } catch (error) {
     console.error('Failed to get text block:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+/**
+ * Delete a text block completely
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const blockId = params.id
+
+    // Get the text block first to retrieve page_id
+    const { data: block, error: getError } = await supabaseAdmin
+      .from('text_blocks')
+      .select('page_id')
+      .eq('id', blockId)
+      .single()
+
+    if (getError || !block) {
+      return NextResponse.json({ error: 'Text block not found' }, { status: 404 })
+    }
+
+    // Delete the text block
+    const { error: deleteError } = await supabaseAdmin
+      .from('text_blocks')
+      .delete()
+      .eq('id', blockId)
+
+    if (deleteError) {
+      console.error('Failed to delete text block:', deleteError)
+      return NextResponse.json({ error: 'Failed to delete text block' }, { status: 500 })
+    }
+
+    console.log('Text block deleted:', blockId)
+
+    // Re-render the page with remaining text blocks
+    try {
+      const pageId = (block as any).page_id
+
+      // Get page info
+      const { data: page, error: pageError } = await supabaseAdmin
+        .from('pages')
+        .select('*')
+        .eq('id', pageId)
+        .single()
+
+      if (pageError || !page) {
+        console.error('Failed to get page:', pageError)
+        throw new Error('Page not found')
+      }
+
+      console.log('Re-rendering page after deletion:', page)
+
+      // Get all remaining text blocks for this page
+      const { data: allBlocks } = await supabaseAdmin
+        .from('text_blocks')
+        .select('*')
+        .eq('page_id', pageId)
+
+      console.log(`Found ${allBlocks?.length || 0} remaining text blocks for re-render`)
+
+      // Fetch original image
+      const imageResponse = await fetch((page as any).original_blob_url)
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to fetch image: ${imageResponse.statusText}`)
+      }
+      const imageBuffer = Buffer.from(await imageResponse.arrayBuffer())
+
+      // Render page with remaining text blocks
+      const renderedBuffer = await renderPage(
+        imageBuffer,
+        allBlocks || [],
+        { maskOriginalText: true }
+      )
+
+      // Upload rendered image
+      const renderedBlob = await put(
+        `rendered/${(page as any).project_id}/${pageId}.png`,
+        renderedBuffer,
+        { access: 'public' }
+      )
+
+      // Update page with new rendered URL
+      await supabaseAdmin
+        .from('pages')
+        .update({ processed_blob_url: renderedBlob.url })
+        .eq('id', pageId)
+
+      console.log(`✅ Re-rendered page ${pageId} after text block deletion`)
+    } catch (renderError: any) {
+      console.error('❌ Failed to re-render page:', renderError)
+      // Don't fail the request if rendering fails
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Text block deletion failed:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

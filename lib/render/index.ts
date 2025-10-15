@@ -71,6 +71,7 @@ function generateSvgOverlay(
 
     const { bbox } = block
     const text = block.translated_text
+    const isVertical = (block as any).is_vertical || false
 
     // If masking original text, draw a white rectangle first
     if (options.maskOriginalText) {
@@ -90,42 +91,74 @@ function generateSvgOverlay(
       ? block.font_size
       : calculateFontSize(text, bbox)
 
-    // Split text into lines that fit the bounding box (use 98% width)
-    const lines = wrapText(text, bbox.width * 0.98, fontSize)
-
-    // Calculate line height (1.1x font size for tighter spacing)
-    const lineHeight = fontSize * 1.1
-    const totalHeight = lines.length * lineHeight
-
-    // Center text block vertically within bbox
-    const startY = bbox.y + (bbox.height - totalHeight) / 2 + lineHeight / 2
-
     // Render text with optional stroke
     const strokeAttrs = options.strokeWidth
       ? `stroke="${options.strokeColor || 'black'}" stroke-width="${options.strokeWidth}"`
       : ''
 
-    // Render each line
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i]
-      const yPos = startY + i * lineHeight
+    if (isVertical) {
+      // Vertical text rendering (top to bottom)
+      const chars = text.split('')
+      const charHeight = fontSize * 1.1
+      const totalHeight = chars.length * charHeight
+      const startY = bbox.y + (bbox.height - totalHeight) / 2 + charHeight / 2
+      const centerX = bbox.x + bbox.width / 2
 
-      const textElement = `
-        <text
-          x="${bbox.x + bbox.width / 2}"
-          y="${yPos}"
-          font-family="${block.font_family || 'Arial, Noto Sans CJK SC, sans-serif'}"
-          font-size="${fontSize}"
-          text-anchor="middle"
-          dominant-baseline="middle"
-          fill="black"
-          ${strokeAttrs}
-        >
-          ${escapeXml(line)}
-        </text>
-      `
+      for (let i = 0; i < chars.length; i++) {
+        const char = chars[i]
+        const yPos = startY + i * charHeight
 
-      elements.push(textElement)
+        const textElement = `
+          <text
+            x="${centerX}"
+            y="${yPos}"
+            font-family="${block.font_family || 'Arial, Noto Sans CJK SC, sans-serif'}"
+            font-size="${fontSize}"
+            text-anchor="middle"
+            dominant-baseline="middle"
+            fill="black"
+            ${strokeAttrs}
+          >
+            ${escapeXml(char)}
+          </text>
+        `
+
+        elements.push(textElement)
+      }
+    } else {
+      // Horizontal text rendering
+      // Split text into lines that fit the bounding box (use 98% width)
+      const lines = wrapText(text, bbox.width * 0.98, fontSize)
+
+      // Calculate line height (1.1x font size for tighter spacing)
+      const lineHeight = fontSize * 1.1
+      const totalHeight = lines.length * lineHeight
+
+      // Center text block vertically within bbox
+      const startY = bbox.y + (bbox.height - totalHeight) / 2 + lineHeight / 2
+
+      // Render each line
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]
+        const yPos = startY + i * lineHeight
+
+        const textElement = `
+          <text
+            x="${bbox.x + bbox.width / 2}"
+            y="${yPos}"
+            font-family="${block.font_family || 'Arial, Noto Sans CJK SC, sans-serif'}"
+            font-size="${fontSize}"
+            text-anchor="middle"
+            dominant-baseline="middle"
+            fill="black"
+            ${strokeAttrs}
+          >
+            ${escapeXml(line)}
+          </text>
+        `
+
+        elements.push(textElement)
+      }
     }
   }
 

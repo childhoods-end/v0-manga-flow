@@ -235,6 +235,22 @@ export default function ProjectPage() {
     await loadProject()
   }
 
+  async function handleDeleteTextBlock(blockId: string) {
+    const response = await fetch(`/api/text-blocks/${blockId}`, {
+      method: 'DELETE',
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to delete text block')
+    }
+
+    // Remove from local text blocks state
+    setEditingTextBlocks(prev => prev.filter(block => block.id !== blockId))
+
+    // Reload project to get updated rendered images
+    await loadProject()
+  }
+
   function handleCloseEditor() {
     setEditingPage(null)
     setEditingTextBlocks([])
@@ -743,6 +759,7 @@ export default function ProjectPage() {
           imageUrl={editingPage.original_blob_url}
           textBlocks={editingTextBlocks}
           onSave={handleSaveTextBlock}
+          onDelete={handleDeleteTextBlock}
           onClose={handleCloseEditor}
         />
       )}
