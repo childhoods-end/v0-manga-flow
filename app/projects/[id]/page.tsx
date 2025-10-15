@@ -197,6 +197,12 @@ export default function ProjectPage() {
   async function handleEditPage(page: any) {
     setLoadingEditor(true)
     try {
+      console.log('[EditPage] Page URLs:', {
+        original: page.original_blob_url,
+        processed: page.processed_blob_url,
+        areSame: page.original_blob_url === page.processed_blob_url
+      })
+
       const response = await fetch(`/api/pages/${page.id}/text-blocks`)
       if (!response.ok) throw new Error('Failed to load text blocks')
 

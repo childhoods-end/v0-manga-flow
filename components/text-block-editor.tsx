@@ -94,6 +94,10 @@ export function TextBlockEditor({
       canvas.width = img.width * scaleX
       canvas.height = img.height * scaleX
 
+      console.log('[Editor] Loading image:', imageUrl)
+      console.log('[Editor] Image dimensions:', img.width, 'x', img.height)
+      console.log('[Editor] Text blocks count:', localTextBlocks.length)
+
       drawCanvas(img, scaleX)
     }
     img.src = imageUrl
