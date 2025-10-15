@@ -66,7 +66,8 @@ function generateSvgOverlay(
   const elements: string[] = []
 
   for (const block of textBlocks) {
-    if (!block.translated_text) continue
+    // Skip blocks without translated text or with empty/null translated text
+    if (!block.translated_text || block.translated_text.trim() === '') continue
 
     const { bbox } = block
     const text = block.translated_text

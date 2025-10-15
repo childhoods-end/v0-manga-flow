@@ -222,6 +222,15 @@ export default function ProjectPage() {
       throw new Error('Failed to save text block')
     }
 
+    // Update local text blocks state
+    setEditingTextBlocks(prev =>
+      prev.map(block =>
+        block.id === blockId
+          ? { ...block, ...updates }
+          : block
+      )
+    )
+
     // Reload project to get updated rendered images
     await loadProject()
   }

@@ -91,7 +91,8 @@ export function TextBlockEditor({
     textBlocks.forEach((block) => {
       const isSelected = selectedBlock?.id === block.id
       const bbox = isSelected && editedBbox ? editedBbox : block.bbox
-      const displayText = isSelected && editedText ? editedText : (block.translated_text || block.ocr_text || '')
+      // Only show edited text for selected block, don't show stored translation for non-selected blocks
+      const displayText = isSelected ? editedText : ''
       const fontSize = isSelected && editedFontSize ? editedFontSize : (block.font_size || 16)
 
       // Scale bbox to canvas size
@@ -106,8 +107,8 @@ export function TextBlockEditor({
       ctx.fillStyle = '#FFFFFF'
       ctx.fillRect(scaledBbox.x, scaledBbox.y, scaledBbox.width, scaledBbox.height)
 
-      // Draw text
-      if (displayText) {
+      // Draw text only if selected and has edited text
+      if (isSelected && displayText) {
         const scaledFontSize = fontSize * currentScale
         ctx.font = `${scaledFontSize}px "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "SimHei", Arial, sans-serif`
         ctx.fillStyle = '#000000'
@@ -269,12 +270,18 @@ export function TextBlockEditor({
         bbox: editedBbox,
       })
 
-      // Update local state
-      const updatedBlocks = textBlocks.map((block) =>
-        block.id === selectedBlock.id
-          ? { ...block, translated_text: editedText, font_size: editedFontSize, bbox: editedBbox }
-          : block
-      )
+      // Update local text blocks state to reflect changes
+      const blockIndex = textBlocks.findIndex(b => b.id === selectedBlock.id)
+      if (blockIndex !== -1) {
+        textBlocks[blockIndex] = {
+          ...textBlocks[blockIndex],
+          translated_text: editedText,
+          font_size: editedFontSize,
+          bbox: editedBbox,
+        }
+      }
+
+      // Deselect block but keep editor open
       setSelectedBlock(null)
     } catch (error) {
       console.error('Failed to save:', error)
@@ -294,20 +301,34 @@ export function TextBlockEditor({
   async function handleDelete() {
     if (!selectedBlock) return
 
+    if (!confirm('确定要删除此文本块的翻译吗？删除后将只保留原图。')) {
+      return
+    }
+
     setSaving(true)
     try {
+      // Delete by setting translated_text to null and font_size to 0
       await onSave(selectedBlock.id, {
-        translated_text: '', // 清空翻译文本
+        translated_text: null,
         font_size: 0,
       })
 
-      // Close editor and reload page
+      // Update local text blocks state
+      const blockIndex = textBlocks.findIndex(b => b.id === selectedBlock.id)
+      if (blockIndex !== -1) {
+        textBlocks[blockIndex] = {
+          ...textBlocks[blockIndex],
+          translated_text: null,
+          font_size: 0,
+        }
+      }
+
+      // Deselect block but keep editor open
       setSelectedBlock(null)
-      setSaving(false)
-      onClose()
     } catch (error) {
       console.error('Failed to delete:', error)
       alert('删除失败，请重试')
+    } finally {
       setSaving(false)
     }
   }
