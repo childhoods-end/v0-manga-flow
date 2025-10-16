@@ -133,7 +133,9 @@ export function TextBlockEditor({
       }
 
       // Always draw white background (mask) to cover original text
-      ctx.fillStyle = '#FFFFFF'
+      // Draw with full opacity to ensure original text is completely hidden
+      ctx.globalCompositeOperation = 'source-over'
+      ctx.fillStyle = 'rgba(255, 255, 255, 1.0)'
       ctx.fillRect(scaledBbox.x, scaledBbox.y, scaledBbox.width, scaledBbox.height)
 
       // Draw text if available
