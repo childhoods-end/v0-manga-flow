@@ -71,7 +71,8 @@ function generateSvgOverlay(
 
     const { bbox } = block
     const text = block.translated_text
-    const isVertical = (block as any).is_vertical || false
+    // Support both is_vertical (boolean) and text_orientation (string) fields
+    const isVertical = (block as any).is_vertical === true || (block as any).text_orientation === 'vertical'
 
     // If masking original text, draw a white rectangle first
     if (options.maskOriginalText) {
