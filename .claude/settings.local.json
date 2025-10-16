@@ -21,7 +21,10 @@
       "Bash(git stash:*)",
       "Bash(git fetch:*)",
       "Bash(git reset:*)",
-      "Bash(pnpm remove:*)"
+      "Bash(pnpm remove:*)",
+      "Bash(psql:*)",
+      "Bash(git restore:*)",
+      "Bash(pnpm approve-builds:*)"
     ],
     "deny": [],
     "ask": []

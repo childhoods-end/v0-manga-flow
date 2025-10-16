@@ -1,5 +1,4 @@
 import sharp from 'sharp'
-import { createCanvas, loadImage } from '@napi-rs/canvas'
 import type { TextBlock, BoundingBox } from '@/lib/database.types'
 import logger from '@/lib/logger'
 
@@ -15,7 +14,7 @@ export interface TextBlockWithTranslation extends Omit<TextBlock, 'bbox'> {
 }
 
 /**
- * Render translated text over the original manga page using Canvas
+ * Render translated text over the original manga page
  * Returns a buffer of the rendered image
  */
 export async function renderPage(
@@ -29,73 +28,24 @@ export async function renderPage(
     const width = metadata.width!
     const height = metadata.height!
 
-    logger.info({ width, height, blockCount: textBlocks.length }, 'Starting page render with Canvas')
+    logger.info({ width, height, blockCount: textBlocks.length }, 'Starting page render')
 
-    // Load image into canvas
-    const image = await loadImage(originalImageBuffer)
-    const canvas = createCanvas(width, height)
-    const ctx = canvas.getContext('2d')
+    // Create SVG overlay with all text blocks
+    const svgOverlay = generateSvgOverlay(width, height, textBlocks, options)
 
-    // Draw original image
-    ctx.drawImage(image, 0, 0, width, height)
+    // Composite SVG over original image
+    const rendered = await sharp(originalImageBuffer)
+      .composite([
+        {
+          input: Buffer.from(svgOverlay),
+          top: 0,
+          left: 0,
+        },
+      ])
+      .png()
+      .toBuffer()
 
-    // Draw text blocks
-    for (const block of textBlocks) {
-      // Skip blocks without translated text
-      if (!block.translated_text || block.translated_text.trim() === '') continue
-
-      const { bbox } = block
-      const text = block.translated_text
-      // Support both is_vertical (boolean) and text_orientation (string) fields
-      const isVertical = (block as any).is_vertical === true || (block as any).text_orientation === 'vertical'
-
-      // Draw white background mask if needed
-      if (options.maskOriginalText) {
-        ctx.fillStyle = options.backgroundColor || 'white'
-        ctx.fillRect(bbox.x, bbox.y, bbox.width, bbox.height)
-      }
-
-      // Use custom font size if provided, otherwise calculate
-      const fontSize = block.font_size && block.font_size > 0
-        ? block.font_size
-        : calculateFontSize(text, bbox)
-
-      // Set font (use fonts that support CJK characters)
-      ctx.font = `${fontSize}px "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "SimHei", "Noto Sans CJK SC", Arial, sans-serif`
-      ctx.fillStyle = 'black'
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-
-      if (isVertical) {
-        // Vertical text rendering (top to bottom)
-        const chars = text.split('')
-        const charHeight = fontSize * 1.1
-        const totalHeight = chars.length * charHeight
-        const startY = bbox.y + (bbox.height - totalHeight) / 2 + charHeight / 2
-        const centerX = bbox.x + bbox.width / 2
-
-        for (let i = 0; i < chars.length; i++) {
-          const yPos = startY + i * charHeight
-          ctx.fillText(chars[i], centerX, yPos)
-        }
-      } else {
-        // Horizontal text rendering
-        const lines = wrapText(ctx, text, bbox.width * 0.98, fontSize)
-        const lineHeight = fontSize * 1.1
-        const totalHeight = lines.length * lineHeight
-        const startY = bbox.y + (bbox.height - totalHeight) / 2 + lineHeight / 2
-
-        for (let i = 0; i < lines.length; i++) {
-          const yPos = startY + i * lineHeight
-          ctx.fillText(lines[i], bbox.x + bbox.width / 2, yPos)
-        }
-      }
-    }
-
-    // Convert canvas to buffer
-    const rendered = canvas.toBuffer('image/png')
-
-    logger.info('Page render completed with Canvas')
+    logger.info('Page render completed')
 
     return rendered
   } catch (error) {
@@ -163,7 +113,7 @@ function generateSvgOverlay(
           <text
             x="${centerX}"
             y="${yPos}"
-            font-family="${block.font_family || 'Arial, Noto Sans CJK SC, sans-serif'}"
+            font-family="sans-serif"
             font-size="${fontSize}"
             text-anchor="middle"
             dominant-baseline="middle"
@@ -197,7 +147,7 @@ function generateSvgOverlay(
           <text
             x="${bbox.x + bbox.width / 2}"
             y="${yPos}"
-            font-family="${block.font_family || 'Arial, Noto Sans CJK SC, sans-serif'}"
+            font-family="sans-serif"
             font-size="${fontSize}"
             text-anchor="middle"
             dominant-baseline="middle"
@@ -221,9 +171,15 @@ function generateSvgOverlay(
 }
 
 /**
- * Wrap text into multiple lines that fit within the specified width using Canvas measureText
+ * Wrap text into multiple lines that fit within the specified width
  */
-function wrapText(ctx: any, text: string, maxWidth: number, fontSize: number): string[] {
+function wrapText(text: string, maxWidth: number, fontSize: number): string[] {
+  const hasCJK = /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]/.test(text)
+  const avgCharWidth = hasCJK ? fontSize * 1.0 : fontSize * 0.6
+  const maxCharsPerLine = Math.floor(maxWidth / avgCharWidth)
+
+  if (maxCharsPerLine <= 0) return [text]
+
   const lines: string[] = []
   let currentLine = ''
 
@@ -231,18 +187,18 @@ function wrapText(ctx: any, text: string, maxWidth: number, fontSize: number): s
   const paragraphs = text.split(/\n/)
 
   for (const paragraph of paragraphs) {
-    const chars = paragraph.split('')
+    const words = paragraph.split(/(\s+)/)
 
-    for (const char of chars) {
-      const testLine = currentLine + char
-      const metrics = ctx.measureText(testLine)
+    for (const word of words) {
+      const testLine = currentLine + word
+      const estimatedWidth = testLine.length * avgCharWidth
 
-      if (metrics.width > maxWidth && currentLine.length > 0) {
+      if (estimatedWidth > maxWidth && currentLine.length > 0) {
         // Line would be too long, push current line and start new one
-        lines.push(currentLine)
-        currentLine = char
+        lines.push(currentLine.trim())
+        currentLine = word
       } else {
-        currentLine = testLine
+        currentLine += word
       }
     }
 
