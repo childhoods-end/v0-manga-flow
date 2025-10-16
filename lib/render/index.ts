@@ -15,6 +15,12 @@ export interface TextBlockWithTranslation extends Omit<TextBlock, 'bbox'> {
 
 /**
  * Render translated text over the original manga page
+ *
+ * NOTE: This server-side rendering uses SVG which has limited CJK font support.
+ * The preview images may not display Chinese/Japanese text correctly.
+ * For high-quality output with proper CJK rendering, use client-side Canvas
+ * rendering (implemented in the download function).
+ *
  * Returns a buffer of the rendered image
  */
 export async function renderPage(
@@ -28,7 +34,7 @@ export async function renderPage(
     const width = metadata.width!
     const height = metadata.height!
 
-    logger.info({ width, height, blockCount: textBlocks.length }, 'Starting page render')
+    logger.info({ width, height, blockCount: textBlocks.length }, 'Starting page render (SVG preview)')
 
     // Create SVG overlay with all text blocks
     const svgOverlay = generateSvgOverlay(width, height, textBlocks, options)
@@ -45,7 +51,7 @@ export async function renderPage(
       .png()
       .toBuffer()
 
-    logger.info('Page render completed')
+    logger.info('Page render completed (may have limited CJK font support)')
 
     return rendered
   } catch (error) {
