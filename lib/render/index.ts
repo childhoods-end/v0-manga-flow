@@ -1,4 +1,5 @@
 import sharp from 'sharp'
+import { createCanvas, loadImage } from '@napi-rs/canvas'
 import type { TextBlock, BoundingBox } from '@/lib/database.types'
 import logger from '@/lib/logger'
 
@@ -14,7 +15,7 @@ export interface TextBlockWithTranslation extends Omit<TextBlock, 'bbox'> {
 }
 
 /**
- * Render translated text over the original manga page
+ * Render translated text over the original manga page using Canvas
  * Returns a buffer of the rendered image
  */
 export async function renderPage(
@@ -28,24 +29,73 @@ export async function renderPage(
     const width = metadata.width!
     const height = metadata.height!
 
-    logger.info({ width, height, blockCount: textBlocks.length }, 'Starting page render')
+    logger.info({ width, height, blockCount: textBlocks.length }, 'Starting page render with Canvas')
 
-    // Create SVG overlay with all text blocks
-    const svgOverlay = generateSvgOverlay(width, height, textBlocks, options)
+    // Load image into canvas
+    const image = await loadImage(originalImageBuffer)
+    const canvas = createCanvas(width, height)
+    const ctx = canvas.getContext('2d')
 
-    // Composite SVG over original image
-    const rendered = await sharp(originalImageBuffer)
-      .composite([
-        {
-          input: Buffer.from(svgOverlay),
-          top: 0,
-          left: 0,
-        },
-      ])
-      .png()
-      .toBuffer()
+    // Draw original image
+    ctx.drawImage(image, 0, 0, width, height)
 
-    logger.info('Page render completed')
+    // Draw text blocks
+    for (const block of textBlocks) {
+      // Skip blocks without translated text
+      if (!block.translated_text || block.translated_text.trim() === '') continue
+
+      const { bbox } = block
+      const text = block.translated_text
+      // Support both is_vertical (boolean) and text_orientation (string) fields
+      const isVertical = (block as any).is_vertical === true || (block as any).text_orientation === 'vertical'
+
+      // Draw white background mask if needed
+      if (options.maskOriginalText) {
+        ctx.fillStyle = options.backgroundColor || 'white'
+        ctx.fillRect(bbox.x, bbox.y, bbox.width, bbox.height)
+      }
+
+      // Use custom font size if provided, otherwise calculate
+      const fontSize = block.font_size && block.font_size > 0
+        ? block.font_size
+        : calculateFontSize(text, bbox)
+
+      // Set font (use fonts that support CJK characters)
+      ctx.font = `${fontSize}px "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "SimHei", "Noto Sans CJK SC", Arial, sans-serif`
+      ctx.fillStyle = 'black'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+
+      if (isVertical) {
+        // Vertical text rendering (top to bottom)
+        const chars = text.split('')
+        const charHeight = fontSize * 1.1
+        const totalHeight = chars.length * charHeight
+        const startY = bbox.y + (bbox.height - totalHeight) / 2 + charHeight / 2
+        const centerX = bbox.x + bbox.width / 2
+
+        for (let i = 0; i < chars.length; i++) {
+          const yPos = startY + i * charHeight
+          ctx.fillText(chars[i], centerX, yPos)
+        }
+      } else {
+        // Horizontal text rendering
+        const lines = wrapText(ctx, text, bbox.width * 0.98, fontSize)
+        const lineHeight = fontSize * 1.1
+        const totalHeight = lines.length * lineHeight
+        const startY = bbox.y + (bbox.height - totalHeight) / 2 + lineHeight / 2
+
+        for (let i = 0; i < lines.length; i++) {
+          const yPos = startY + i * lineHeight
+          ctx.fillText(lines[i], bbox.x + bbox.width / 2, yPos)
+        }
+      }
+    }
+
+    // Convert canvas to buffer
+    const rendered = canvas.toBuffer('image/png')
+
+    logger.info('Page render completed with Canvas')
 
     return rendered
   } catch (error) {
@@ -171,15 +221,9 @@ function generateSvgOverlay(
 }
 
 /**
- * Wrap text into multiple lines that fit within the specified width
+ * Wrap text into multiple lines that fit within the specified width using Canvas measureText
  */
-function wrapText(text: string, maxWidth: number, fontSize: number): string[] {
-  const hasCJK = /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]/.test(text)
-  const avgCharWidth = hasCJK ? fontSize * 1.0 : fontSize * 0.6
-  const maxCharsPerLine = Math.floor(maxWidth / avgCharWidth)
-
-  if (maxCharsPerLine <= 0) return [text]
-
+function wrapText(ctx: any, text: string, maxWidth: number, fontSize: number): string[] {
   const lines: string[] = []
   let currentLine = ''
 
@@ -187,18 +231,18 @@ function wrapText(text: string, maxWidth: number, fontSize: number): string[] {
   const paragraphs = text.split(/\n/)
 
   for (const paragraph of paragraphs) {
-    const words = paragraph.split(/(\s+)/)
+    const chars = paragraph.split('')
 
-    for (const word of words) {
-      const testLine = currentLine + word
-      const estimatedWidth = testLine.length * avgCharWidth
+    for (const char of chars) {
+      const testLine = currentLine + char
+      const metrics = ctx.measureText(testLine)
 
-      if (estimatedWidth > maxWidth && currentLine.length > 0) {
+      if (metrics.width > maxWidth && currentLine.length > 0) {
         // Line would be too long, push current line and start new one
-        lines.push(currentLine.trim())
-        currentLine = word
+        lines.push(currentLine)
+        currentLine = char
       } else {
-        currentLine += word
+        currentLine = testLine
       }
     }
 
