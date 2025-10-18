@@ -9,9 +9,12 @@ import Link from 'next/link'
 import { SUPPORTED_LANGUAGES, CONTENT_RATINGS } from '@/lib/constants'
 import { supabase } from '@/lib/supabase/client'
 import { track } from '@vercel/analytics'
+import { useTranslations } from 'next-intl'
+import { LanguageSwitcher } from '@/components/language-switcher'
 
 export default function TranslatePage() {
   const router = useRouter()
+  const t = useTranslations()
   const [files, setFiles] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
@@ -153,7 +156,7 @@ export default function TranslatePage() {
       <nav className="border-b bg-white/50 dark:bg-slate-900/50 backdrop-blur-lg sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/" className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            MangaFlow
+            {t('nav.title')}
           </Link>
           <div className="flex items-center gap-3">
             {userEmail && (
@@ -162,14 +165,15 @@ export default function TranslatePage() {
                 <span>{userEmail}</span>
               </div>
             )}
+            <LanguageSwitcher />
             <Button variant="outline" size="sm" onClick={handleSignOut}>
               <LogOut className="w-4 h-4 mr-2" />
-              登出
+              {t('auth.signOut')}
             </Button>
             <Link href="/">
               <Button variant="outline" size="sm">
                 <ArrowLeft className="w-4 h-4 mr-2" />
-                返回首页
+                {t('nav.backToHome')}
               </Button>
             </Link>
           </div>
@@ -180,31 +184,31 @@ export default function TranslatePage() {
         {/* Page Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent mb-2">
-            Translate Your Comics
+            {t('translate.title')}
           </h1>
           <p className="text-slate-600 dark:text-slate-400">
-            Upload your manga or comic pages and let AI translate them instantly
+            {t('home.subtitle')}
           </p>
         </div>
 
         {/* Upload Form */}
         <Card className="border-2 bg-white/80 dark:bg-slate-900/80 backdrop-blur">
           <CardHeader>
-            <CardTitle>Project Details</CardTitle>
-            <CardDescription>Provide information about your translation project</CardDescription>
+            <CardTitle>{t('translate.uploadTitle')}</CardTitle>
+            <CardDescription>{t('home.description')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Title */}
             <div>
               <label htmlFor="title" className="block text-sm font-medium mb-2">
-                Project Title *
+                {t('translate.projectName')} *
               </label>
               <input
                 id="title"
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g., One Piece Chapter 1"
+                placeholder={t('translate.projectNamePlaceholder')}
                 className="w-full px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -213,7 +217,7 @@ export default function TranslatePage() {
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="sourceLang" className="block text-sm font-medium mb-2">
-                  Source Language *
+                  {t('translate.sourceLanguage')} *
                 </label>
                 <select
                   id="sourceLang"
@@ -230,7 +234,7 @@ export default function TranslatePage() {
               </div>
               <div>
                 <label htmlFor="targetLang" className="block text-sm font-medium mb-2">
-                  Target Language *
+                  {t('translate.targetLanguage')} *
                 </label>
                 <select
                   id="targetLang"

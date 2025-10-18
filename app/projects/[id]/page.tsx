@@ -9,11 +9,14 @@ import { ArrowLeft, Loader2, CheckCircle, Edit } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { track } from '@vercel/analytics'
 import { TextBlockEditor } from '@/components/text-block-editor'
+import { useTranslations } from 'next-intl'
+import { LanguageSwitcher } from '@/components/language-switcher'
 
 export default function ProjectPage() {
   const params = useParams()
   const router = useRouter()
   const projectId = params.id as string
+  const t = useTranslations()
 
   const [project, setProject] = useState<any>(null)
   const [pages, setPages] = useState<any[]>([])
@@ -508,14 +511,17 @@ export default function ProjectPage() {
         <nav className="border-b bg-white/50 dark:bg-slate-900/50 backdrop-blur-lg sticky top-0 z-50">
           <div className="container mx-auto px-4 py-4 flex justify-between items-center">
             <Link href="/" className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              MangaFlow
+              {t('nav.title')}
             </Link>
-            <Link href="/">
-              <Button variant="outline" size="sm">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Home
-              </Button>
-            </Link>
+            <div className="flex items-center gap-3">
+              <LanguageSwitcher />
+              <Link href="/">
+                <Button variant="outline" size="sm">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  {t('nav.backToHome')}
+                </Button>
+              </Link>
+            </div>
           </div>
         </nav>
         <div className="container mx-auto px-4 py-12 max-w-4xl">
@@ -539,14 +545,17 @@ export default function ProjectPage() {
       <nav className="border-b bg-white/50 dark:bg-slate-900/50 backdrop-blur-lg sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/" className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            MangaFlow
+            {t('nav.title')}
           </Link>
-          <Link href="/translate">
-            <Button variant="outline" size="sm">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              New Project
-            </Button>
-          </Link>
+          <div className="flex items-center gap-3">
+            <LanguageSwitcher />
+            <Link href="/translate">
+              <Button variant="outline" size="sm">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                {t('nav.newProject')}
+              </Button>
+            </Link>
+          </div>
         </div>
       </nav>
 
