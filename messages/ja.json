@@ -1,0 +1,127 @@
+{
+  "nav": {
+    "title": "MangaFlow",
+    "newProject": "新規プロジェクト",
+    "backToHome": "ホームに戻る"
+  },
+  "home": {
+    "title": "AI漫画翻訳",
+    "subtitle": "漫画を迅速かつ正確に翻訳",
+    "description": "AI技術を使用して漫画のテキストを自動的に認識して翻訳します。複数の言語をサポートし、元のレイアウトを維持します。",
+    "getStarted": "始める",
+    "features": {
+      "title": "機能",
+      "ocr": {
+        "title": "スマートOCR認識",
+        "description": "Google Cloud VisionまたはTesseractを使用して漫画のテキストを自動検出"
+      },
+      "translate": {
+        "title": "AI翻訳",
+        "description": "OpenAI、Claude、DeepLなど複数の翻訳エンジンをサポート"
+      },
+      "edit": {
+        "title": "ビジュアルエディタ",
+        "description": "テキストの位置、サイズ、方向を調整できる直感的なエディタ"
+      }
+    }
+  },
+  "translate": {
+    "title": "漫画を翻訳",
+    "uploadTitle": "漫画をアップロード",
+    "dragDrop": "ここにファイルをドラッグ＆ドロップまたはクリックして選択",
+    "acceptedFormats": "ZIPまたは単一画像（PNG、JPG、WEBP）を受け入れます",
+    "projectName": "プロジェクト名",
+    "projectNamePlaceholder": "例：私の漫画第1話",
+    "sourceLanguage": "元の言語",
+    "targetLanguage": "翻訳先言語",
+    "languages": {
+      "japanese": "日本語",
+      "chinese": "中国語",
+      "english": "英語",
+      "korean": "韓国語",
+      "french": "フランス語",
+      "german": "ドイツ語",
+      "spanish": "スペイン語"
+    },
+    "uploadButton": "アップロードして翻訳を開始",
+    "uploading": "アップロード中...",
+    "processing": "処理中..."
+  },
+  "project": {
+    "uploadSuccess": "アップロード成功！",
+    "uploadSuccessMessage": "プロジェクトが作成されました。{count}ページ",
+    "pages": "ページ",
+    "status": {
+      "pending": "保留中",
+      "processing": "処理中",
+      "ready": "完了",
+      "failed": "失敗"
+    },
+    "viewTranslations": "翻訳テキストを表示",
+    "downloadImages": "翻訳画像をダウンロード",
+    "downloading": "ダウンロード中...",
+    "actions": {
+      "title": "アクション",
+      "projectCreated": "プロジェクト作成成功",
+      "pagesUploaded": "{count}ページアップロード済み",
+      "translationComplete": "翻訳完了",
+      "translationFailed": "翻訳失敗",
+      "readyToTranslate": "翻訳準備完了",
+      "startTranslation": "AI翻訳を開始",
+      "translating": "翻訳中...",
+      "downloadPages": "翻訳ページをダウンロード",
+      "uploadAnother": "別のプロジェクトをアップロード"
+    },
+    "editor": {
+      "title": "テキストブロックを編集",
+      "original": "原文",
+      "translation": "翻訳",
+      "translationPlaceholder": "翻訳を入力...",
+      "fontSize": "フォントサイズ",
+      "textDirection": "テキスト方向",
+      "horizontal": "横書き",
+      "vertical": "縦書き",
+      "position": "位置とサイズ",
+      "save": "保存",
+      "saving": "保存中...",
+      "delete": "テキストブロックを削除",
+      "deleting": "削除中...",
+      "deleteConfirm": "このテキストブロックを完全に削除してもよろしいですか？削除後、この領域は元の画像のみが表示され、編集できません。",
+      "clickToSelect": "テキストボックスをクリック",
+      "startEditing": "編集を開始",
+      "translated": "翻訳済み",
+      "confidence": "信頼度",
+      "editText": "テキストを編集",
+      "hint": "クリックして選択、ドラッグして移動、角をドラッグしてサイズ変更"
+    },
+    "translations": {
+      "title": "翻訳プレビュー",
+      "totalPages": "{pages}ページ、{blocks}個のテキストブロック",
+      "page": "第{number}ページ",
+      "close": "閉じる"
+    }
+  },
+  "dashboard": {
+    "title": "マイプロジェクト",
+    "noProjects": "プロジェクトがありません",
+    "noProjectsDescription": "最初の漫画プロジェクトをアップロードしましょう！",
+    "createProject": "新規プロジェクトを作成"
+  },
+  "auth": {
+    "title": "サインイン",
+    "subtitle": "プロジェクトにアクセスするにはサインインしてください",
+    "signIn": "サインイン",
+    "signOut": "サインアウト"
+  },
+  "common": {
+    "loading": "読み込み中...",
+    "error": "エラー",
+    "success": "成功",
+    "cancel": "キャンセル",
+    "confirm": "確認",
+    "back": "戻る",
+    "next": "次へ",
+    "previous": "前へ",
+    "close": "閉じる"
+  }
+}

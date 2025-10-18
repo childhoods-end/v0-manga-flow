@@ -1,0 +1,127 @@
+{
+  "nav": {
+    "title": "MangaFlow",
+    "newProject": "新建项目",
+    "backToHome": "返回首页"
+  },
+  "home": {
+    "title": "AI漫画翻译",
+    "subtitle": "快速、准确地翻译您的漫画",
+    "description": "使用AI技术自动识别和翻译漫画文本。支持多种语言，保持原有排版。",
+    "getStarted": "开始翻译",
+    "features": {
+      "title": "功能特点",
+      "ocr": {
+        "title": "智能OCR识别",
+        "description": "使用Google Cloud Vision或Tesseract自动识别漫画中的文本"
+      },
+      "translate": {
+        "title": "AI翻译",
+        "description": "支持OpenAI、Claude、DeepL等多种翻译引擎"
+      },
+      "edit": {
+        "title": "可视化编辑",
+        "description": "直观的编辑器，可以调整文本位置、大小和方向"
+      }
+    }
+  },
+  "translate": {
+    "title": "翻译漫画",
+    "uploadTitle": "上传漫画",
+    "dragDrop": "拖拽文件到这里或点击选择",
+    "acceptedFormats": "支持 ZIP 或单张图片 (PNG, JPG, WEBP)",
+    "projectName": "项目名称",
+    "projectNamePlaceholder": "例如：我的漫画第1话",
+    "sourceLanguage": "源语言",
+    "targetLanguage": "目标语言",
+    "languages": {
+      "japanese": "日语",
+      "chinese": "中文",
+      "english": "英语",
+      "korean": "韩语",
+      "french": "法语",
+      "german": "德语",
+      "spanish": "西班牙语"
+    },
+    "uploadButton": "上传并开始翻译",
+    "uploading": "上传中...",
+    "processing": "处理中..."
+  },
+  "project": {
+    "uploadSuccess": "上传成功！",
+    "uploadSuccessMessage": "您的项目已创建，共 {count} 页",
+    "pages": "页",
+    "status": {
+      "pending": "待处理",
+      "processing": "处理中",
+      "ready": "已完成",
+      "failed": "失败"
+    },
+    "viewTranslations": "查看翻译文本",
+    "downloadImages": "下载翻译图片",
+    "downloading": "下载中...",
+    "actions": {
+      "title": "操作",
+      "projectCreated": "项目创建成功",
+      "pagesUploaded": "{count} 页已上传",
+      "translationComplete": "翻译完成",
+      "translationFailed": "翻译失败",
+      "readyToTranslate": "准备翻译",
+      "startTranslation": "开始AI翻译",
+      "translating": "翻译中...",
+      "downloadPages": "下载翻译页面",
+      "uploadAnother": "上传另一个项目"
+    },
+    "editor": {
+      "title": "编辑文本块",
+      "original": "原文",
+      "translation": "译文",
+      "translationPlaceholder": "输入译文...",
+      "fontSize": "字体大小",
+      "textDirection": "文本方向",
+      "horizontal": "横排",
+      "vertical": "竖排",
+      "position": "位置与尺寸",
+      "save": "保存",
+      "saving": "保存中...",
+      "delete": "删除文本块",
+      "deleting": "删除中...",
+      "deleteConfirm": "确定要完全删除此文本块吗？删除后该区域将只显示原图，且无法编辑。",
+      "clickToSelect": "点击画布上的文本框",
+      "startEditing": "开始编辑",
+      "translated": "已翻译",
+      "confidence": "置信度",
+      "editText": "编辑文本",
+      "hint": "点击文本框选择，拖动移动位置，拖动右下角调整大小"
+    },
+    "translations": {
+      "title": "翻译文本预览",
+      "totalPages": "共 {pages} 页，{blocks} 个文本块",
+      "page": "第 {number} 页",
+      "close": "关闭"
+    }
+  },
+  "dashboard": {
+    "title": "我的项目",
+    "noProjects": "还没有项目",
+    "noProjectsDescription": "开始上传您的第一个漫画项目吧！",
+    "createProject": "创建新项目"
+  },
+  "auth": {
+    "title": "登录",
+    "subtitle": "登录以访问您的项目",
+    "signIn": "登录",
+    "signOut": "退出登录"
+  },
+  "common": {
+    "loading": "加载中...",
+    "error": "错误",
+    "success": "成功",
+    "cancel": "取消",
+    "confirm": "确认",
+    "back": "返回",
+    "next": "下一步",
+    "previous": "上一步",
+    "close": "关闭"
+  }
+}

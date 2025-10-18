@@ -6,10 +6,13 @@ import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase/client"
+import { LanguageSwitcher } from "@/components/language-switcher"
+import { useTranslations } from 'next-intl'
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const router = useRouter()
+  const t = useTranslations()
 
   async function handleStartTranslating() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -56,9 +59,10 @@ export function Header() {
 
         {/* Auth Buttons */}
         <div className="hidden items-center gap-3 md:flex">
+          <LanguageSwitcher />
           <Link href="/auth">
             <Button variant="ghost" size="sm">
-              登录
+              {t('auth.signIn')}
             </Button>
           </Link>
           <Button
@@ -66,7 +70,7 @@ export function Header() {
             onClick={handleStartTranslating}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
-            开始翻译
+            {t('home.getStarted')}
           </Button>
         </div>
 
@@ -102,9 +106,12 @@ export function Header() {
               Pricing
             </Link>
             <div className="flex flex-col gap-2 pt-4">
+              <div className="pb-2">
+                <LanguageSwitcher />
+              </div>
               <Link href="/auth">
                 <Button variant="outline" className="w-full bg-transparent">
-                  登录
+                  {t('auth.signIn')}
                 </Button>
               </Link>
               <Button
@@ -114,7 +121,7 @@ export function Header() {
                 }}
                 className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
               >
-                开始翻译
+                {t('home.getStarted')}
               </Button>
             </div>
           </div>
