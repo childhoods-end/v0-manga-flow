@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useTransition } from 'react'
 import { useLocale } from 'next-intl'
+import { usePathname, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -15,12 +16,18 @@ import { locales, localeNames, type Locale } from '@/lib/i18n-config'
 export function LanguageSwitcher() {
   const currentLocale = useLocale() as Locale
   const [isPending, startTransition] = useTransition()
+  const router = useRouter()
+  const pathname = usePathname()
 
   const changeLanguage = (locale: Locale) => {
     startTransition(() => {
-      // Set cookie and reload
+      // Set cookie for next-intl
       document.cookie = `NEXT_LOCALE=${locale}; path=/; max-age=31536000`
-      window.location.reload()
+
+      // Update the URL with the new locale
+      const newPathname = pathname.replace(`/${currentLocale}`, `/${locale}`)
+      router.push(newPathname === pathname ? `/${locale}${pathname}` : newPathname)
+      router.refresh()
     })
   }
 

@@ -1,8 +1,20 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import createMiddleware from 'next-intl/middleware'
+import { locales } from '@/lib/i18n-config'
+
+// Create the next-intl middleware
+const intlMiddleware = createMiddleware({
+  locales,
+  defaultLocale: 'zh',
+  localePrefix: 'as-needed',
+})
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  // First handle internationalization
+  const intlResponse = intlMiddleware(request)
 
   // Protected routes that require authentication
   const protectedRoutes = ['/translate', '/projects']
@@ -11,7 +23,7 @@ export async function middleware(request: NextRequest) {
   const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route))
 
   if (!isProtectedRoute) {
-    return NextResponse.next()
+    return intlResponse
   }
 
   // Create response with proper cookie handling
@@ -82,5 +94,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/translate/:path*', '/projects/:path*'],
+  matcher: ['/((?!api|_next|_vercel|.*\\..*).*)'],
 }
