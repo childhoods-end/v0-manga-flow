@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Languages } from 'lucide-react'
-import { locales, localeNames, type Locale } from '@/i18n'
+import { locales, localeNames, type Locale } from '@/lib/i18n-config'
 
 export function LanguageSwitcher() {
   const currentLocale = useLocale() as Locale
