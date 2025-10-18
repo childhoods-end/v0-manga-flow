@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { SUPPORTED_LANGUAGES, CONTENT_RATINGS } from '@/lib/constants'
 import { supabase } from '@/lib/supabase/client'
 import { track } from '@vercel/analytics'
+import { BetaNotice } from '@/components/beta-notice'
 
 export default function TranslatePage() {
   const router = useRouter()
@@ -346,6 +347,7 @@ export default function TranslatePage() {
             </Button>
           </CardContent>
         </Card>
+        <BetaNotice />
       </div>
     </div>
   )

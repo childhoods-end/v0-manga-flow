@@ -9,6 +9,7 @@ import { ArrowLeft, Loader2, CheckCircle, Edit } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { track } from '@vercel/analytics'
 import { TextBlockEditor } from '@/components/text-block-editor'
+import { BetaNotice } from '@/components/beta-notice'
 
 export default function ProjectPage() {
   const params = useParams()
@@ -762,6 +763,7 @@ export default function ProjectPage() {
             </div>
           </CardContent>
         </Card>
+        <BetaNotice />
       </div>
 
       {/* Text Block Editor */}
