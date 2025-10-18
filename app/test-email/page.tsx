@@ -42,7 +42,7 @@ export default function TestEmailPage() {
       {/* Header */}
       <nav className="border-b bg-white/50 dark:bg-slate-900/50 backdrop-blur-lg sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <Link href="/" className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+          <Link href="/" className="text-2xl font-bold text-black dark:text-white">
             MangaFlow
           </Link>
           <Link href="/">
