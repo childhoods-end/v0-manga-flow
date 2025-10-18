@@ -1,16 +1,20 @@
 import { getRequestConfig } from 'next-intl/server'
+import { cookies } from 'next/headers'
 import type { Locale } from '@/lib/i18n-config'
+import { locales } from '@/lib/i18n-config'
 
-export default getRequestConfig(async ({ requestLocale }) => {
-  // Get locale from request or default to 'zh'
-  let locale = await requestLocale
+export default getRequestConfig(async () => {
+  // Get locale from cookie or default to 'zh'
+  const cookieStore = await cookies()
+  const localeCookie = cookieStore.get('NEXT_LOCALE')?.value
 
-  if (!locale) {
-    locale = 'zh'
-  }
+  // Validate and use locale from cookie, or fallback to default
+  const locale = (localeCookie && locales.includes(localeCookie as Locale)
+    ? localeCookie
+    : 'zh') as Locale
 
   return {
     locale,
-    messages: (await import(`./messages/${locale as Locale}.json`)).default,
+    messages: (await import(`./messages/${locale}.json`)).default,
   }
 })
