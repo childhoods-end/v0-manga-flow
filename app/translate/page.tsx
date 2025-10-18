@@ -38,10 +38,17 @@ export default function TranslatePage() {
 
   async function fetchCredits() {
     try {
+      console.log('Fetching credits...')
       const response = await fetch('/api/credits')
+      console.log('Credits response status:', response.status)
+
       if (response.ok) {
         const data = await response.json()
+        console.log('Credits data:', data)
         setCredits(data)
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        console.error('Failed to fetch credits:', response.status, errorData)
       }
     } catch (error) {
       console.error('Failed to fetch credits:', error)

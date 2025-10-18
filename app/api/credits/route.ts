@@ -1,35 +1,48 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 
 // GET /api/credits - Get user's credit balance
 export async function GET(request: NextRequest) {
   try {
-    // Get user ID from auth header or cookie
+    console.log('[Credits API] GET request received')
+
+    // Get session from cookies
     const cookieStore = await cookies()
-    const authHeader = request.headers.get('authorization')
-    const token = authHeader?.replace('Bearer ', '') || cookieStore.get('sb-access-token')?.value
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value
+          },
+        },
+      }
+    )
 
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Verify token and get user
     const {
       data: { user },
       error: authError,
-    } = await supabaseAdmin.auth.getUser(token)
+    } = await supabase.auth.getUser()
+
+    console.log('[Credits API] User:', user?.id, 'Auth error:', authError)
 
     if (authError || !user) {
+      console.error('[Credits API] Unauthorized')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Get user credits
+    console.log('[Credits API] Fetching credits for user:', user.id)
     const { data: credits, error: creditsError } = await supabaseAdmin
       .from('user_credits')
       .select('*')
       .eq('user_id', user.id)
       .single()
+
+    console.log('[Credits API] Credits:', credits, 'Error:', creditsError)
 
     if (creditsError) {
       // If credits don't exist, create them
@@ -68,20 +81,24 @@ export async function GET(request: NextRequest) {
 // POST /api/credits - Deduct credits for translation
 export async function POST(request: NextRequest) {
   try {
-    // Get user ID from auth header or cookie
+    // Get session from cookies
     const cookieStore = await cookies()
-    const authHeader = request.headers.get('authorization')
-    const token = authHeader?.replace('Bearer ', '') || cookieStore.get('sb-access-token')?.value
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value
+          },
+        },
+      }
+    )
 
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Verify token and get user
     const {
       data: { user },
       error: authError,
-    } = await supabaseAdmin.auth.getUser(token)
+    } = await supabase.auth.getUser()
 
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
