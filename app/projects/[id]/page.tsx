@@ -561,9 +561,9 @@ export default function ProjectPage() {
             <div className="flex items-center gap-3">
               <CheckCircle className="w-8 h-8 text-green-600" />
               <div>
-                <h3 className="text-lg font-bold text-green-900 dark:text-green-100">Upload Successful!</h3>
+                <h3 className="text-lg font-bold text-green-900 dark:text-green-100">上传成功！</h3>
                 <p className="text-green-700 dark:text-green-300">
-                  Your project has been created with {pages.length} page{pages.length !== 1 ? 's' : ''}
+                  项目已创建，共 {pages.length} 页
                 </p>
               </div>
             </div>
@@ -576,9 +576,9 @@ export default function ProjectPage() {
             <CardTitle className="text-3xl">{project.title}</CardTitle>
             <CardDescription>
               <div className="flex flex-wrap gap-4 mt-2">
-                <span>📖 {project.total_pages} pages</span>
+                <span>📖 {project.total_pages} 页</span>
                 <span>🌐 {project.source_language} → {project.target_language}</span>
-                <span>📊 Status: {project.status}</span>
+                <span>📊 状态: {project.status}</span>
               </div>
             </CardDescription>
           </CardHeader>
@@ -640,7 +640,7 @@ export default function ProjectPage() {
         )}
 
         {/* Pages Grid */}
-        <h2 className="text-2xl font-bold mb-4">Pages</h2>
+        <h2 className="text-2xl font-bold mb-4">页面列表</h2>
         {pages.length > 0 ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {pages.map((page) => (
@@ -650,13 +650,13 @@ export default function ProjectPage() {
                     {page.processed_blob_url ? (
                       <img
                         src={page.processed_blob_url}
-                        alt={`Page ${page.page_index + 1} (Translated)`}
+                        alt={`第 ${page.page_index + 1} 页（已翻译）`}
                         className="w-full h-full object-cover"
                       />
                     ) : page.original_blob_url ? (
                       <img
                         src={page.original_blob_url}
-                        alt={`Page ${page.page_index + 1}`}
+                        alt={`第 ${page.page_index + 1} 页`}
                         className="w-full h-full object-cover"
                       />
                     ) : null}
@@ -674,7 +674,7 @@ export default function ProjectPage() {
                     )}
                   </div>
                   <div className="p-3">
-                    <p className="text-sm font-medium">Page {page.page_index + 1}</p>
+                    <p className="text-sm font-medium">第 {page.page_index + 1} 页</p>
                     <p className="text-xs text-muted-foreground">
                       {page.width} × {page.height}
                     </p>
@@ -691,7 +691,7 @@ export default function ProjectPage() {
         ) : (
           <Card>
             <CardContent className="py-12 text-center">
-              <p className="text-slate-600 dark:text-slate-400">No pages found</p>
+              <p className="text-slate-600 dark:text-slate-400">未找到页面</p>
             </CardContent>
           </Card>
         )}
@@ -703,7 +703,7 @@ export default function ProjectPage() {
               <div className="flex items-center gap-3">
                 <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
                 <div>
-                  <p className="font-medium">Translating...</p>
+                  <p className="font-medium">翻译中...</p>
                   <p className="text-sm text-muted-foreground">{translationProgress}</p>
                 </div>
               </div>
@@ -714,18 +714,18 @@ export default function ProjectPage() {
         {/* Next Steps */}
         <Card className="mt-8 bg-blue-50 dark:bg-blue-950/30 border-blue-200">
           <CardHeader>
-            <CardTitle>Actions</CardTitle>
+            <CardTitle>操作</CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="space-y-2">
-              <li>✅ Project created successfully</li>
-              <li>✅ {pages.length} page{pages.length !== 1 ? 's' : ''} uploaded</li>
+              <li>✅ 项目创建成功</li>
+              <li>✅ 已上传 {pages.length} 页</li>
               <li>
                 {project?.status === 'ready' || project?.status === 'processing'
-                  ? '✅ Translation completed'
+                  ? '✅ 翻译完成'
                   : project?.status === 'failed'
-                  ? '❌ Translation failed'
-                  : '⏳ Ready to translate'}
+                  ? '❌ 翻译失败'
+                  : '⏳ 准备翻译'}
               </li>
             </ul>
             <div className="mt-6 flex gap-3 flex-wrap">
@@ -738,10 +738,10 @@ export default function ProjectPage() {
                   {isTranslating ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Translating...
+                      翻译中...
                     </>
                   ) : (
-                    <>🤖 Start AI Translation</>
+                    <>🤖 开始 AI 翻译</>
                   )}
                 </Button>
               )}
@@ -750,14 +750,14 @@ export default function ProjectPage() {
                   onClick={handleDownloadTranslated}
                   className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
                 >
-                  📥 Download Translated Pages
+                  📥 下载翻译后的页面
                 </Button>
               )}
               <Link href="/translate">
-                <Button variant="outline">Upload Another Project</Button>
+                <Button variant="outline">上传新项目</Button>
               </Link>
               <Link href="/">
-                <Button variant="outline">Back to Home</Button>
+                <Button variant="outline">返回首页</Button>
               </Link>
             </div>
           </CardContent>
