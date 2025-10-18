@@ -9,12 +9,9 @@ import Link from 'next/link'
 import { SUPPORTED_LANGUAGES, CONTENT_RATINGS } from '@/lib/constants'
 import { supabase } from '@/lib/supabase/client'
 import { track } from '@vercel/analytics'
-import { useTranslations } from 'next-intl'
-import { LanguageSwitcher } from '@/components/language-switcher'
 
 export default function TranslatePage() {
   const router = useRouter()
-  const t = useTranslations()
   const [files, setFiles] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
@@ -63,17 +60,17 @@ export default function TranslatePage() {
 
   const handleUpload = async () => {
     if (!title.trim()) {
-      alert('Please enter a project title')
+      alert('请输入项目名称')
       return
     }
 
     if (files.length === 0) {
-      alert('Please select files to upload')
+      alert('请选择要上传的文件')
       return
     }
 
     if (!rightsDeclaration) {
-      alert('Please confirm that you have the rights to translate this content')
+      alert('请确认您拥有翻译此内容的合法权利')
       return
     }
 
@@ -97,19 +94,19 @@ export default function TranslatePage() {
       })
 
       if (!response.ok) {
-        let errorMessage = 'Upload failed'
+        let errorMessage = '上传失败'
         try {
           const error = await response.json()
           errorMessage = error.error || errorMessage
         } catch (e) {
-          errorMessage = `Upload failed with status ${response.status}`
+          errorMessage = `上传失败，状态码: ${response.status}`
         }
         throw new Error(errorMessage)
       }
 
       const responseText = await response.text()
       if (!responseText) {
-        throw new Error('Empty response from server')
+        throw new Error('服务器响应为空')
       }
 
       const result = JSON.parse(responseText)
@@ -128,15 +125,15 @@ export default function TranslatePage() {
       if (result.projectId) {
         router.push(`/projects/${result.projectId}`)
       } else {
-        alert('Upload successful! Translation processing has started.')
+        alert('上传成功！翻译处理已开始。')
         router.push('/dashboard')
       }
     } catch (error) {
       console.error('Upload failed:', error)
-      const errorMsg = error instanceof Error ? error.message : 'Upload failed. Please try again.'
+      const errorMsg = error instanceof Error ? error.message : '上传失败，请重试。'
 
       // Show detailed error message
-      const detailedMsg = `Upload failed: ${errorMsg}\n\nPlease check:\n1. Supabase is configured in .env.local\n2. Database tables are created\n3. Check browser console (F12) for more details`
+      const detailedMsg = `上传失败: ${errorMsg}\n\n请检查:\n1. Supabase 已在 .env.local 中配置\n2. 数据库表已创建\n3. 查看浏览器控制台 (F12) 获取更多详情`
 
       alert(detailedMsg)
     } finally {
@@ -156,7 +153,7 @@ export default function TranslatePage() {
       <nav className="border-b bg-white/50 dark:bg-slate-900/50 backdrop-blur-lg sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/" className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            {t('nav.title')}
+            MangaFlow
           </Link>
           <div className="flex items-center gap-3">
             {userEmail && (
@@ -165,15 +162,14 @@ export default function TranslatePage() {
                 <span>{userEmail}</span>
               </div>
             )}
-            <LanguageSwitcher />
             <Button variant="outline" size="sm" onClick={handleSignOut}>
               <LogOut className="w-4 h-4 mr-2" />
-              {t('auth.signOut')}
+              退出登录
             </Button>
             <Link href="/">
               <Button variant="outline" size="sm">
                 <ArrowLeft className="w-4 h-4 mr-2" />
-                {t('nav.backToHome')}
+                返回首页
               </Button>
             </Link>
           </div>
@@ -184,31 +180,31 @@ export default function TranslatePage() {
         {/* Page Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent mb-2">
-            {t('translate.title')}
+            漫画翻译
           </h1>
           <p className="text-slate-600 dark:text-slate-400">
-            {t('home.subtitle')}
+            用 AI 精准翻译，即刻阅读漫画
           </p>
         </div>
 
         {/* Upload Form */}
         <Card className="border-2 bg-white/80 dark:bg-slate-900/80 backdrop-blur">
           <CardHeader>
-            <CardTitle>{t('translate.uploadTitle')}</CardTitle>
-            <CardDescription>{t('home.description')}</CardDescription>
+            <CardTitle>上传漫画文件</CardTitle>
+            <CardDescription>支持 JPG、PNG、WEBP、ZIP、CBZ 格式</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Title */}
             <div>
               <label htmlFor="title" className="block text-sm font-medium mb-2">
-                {t('translate.projectName')} *
+                项目名称 *
               </label>
               <input
                 id="title"
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder={t('translate.projectNamePlaceholder')}
+                placeholder="例如：我的漫画翻译项目"
                 className="w-full px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -217,7 +213,7 @@ export default function TranslatePage() {
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="sourceLang" className="block text-sm font-medium mb-2">
-                  {t('translate.sourceLanguage')} *
+                  源语言 *
                 </label>
                 <select
                   id="sourceLang"
@@ -234,7 +230,7 @@ export default function TranslatePage() {
               </div>
               <div>
                 <label htmlFor="targetLang" className="block text-sm font-medium mb-2">
-                  {t('translate.targetLanguage')} *
+                  目标语言 *
                 </label>
                 <select
                   id="targetLang"
@@ -254,7 +250,7 @@ export default function TranslatePage() {
             {/* Content Rating */}
             <div>
               <label htmlFor="contentRating" className="block text-sm font-medium mb-2">
-                Content Rating *
+                内容分级 *
               </label>
               <select
                 id="contentRating"
@@ -272,7 +268,7 @@ export default function TranslatePage() {
 
             {/* File Upload */}
             <div>
-              <label className="block text-sm font-medium mb-2">Upload Files *</label>
+              <label className="block text-sm font-medium mb-2">上传文件 *</label>
               <div
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
@@ -296,7 +292,7 @@ export default function TranslatePage() {
                   {files.length > 0 ? (
                     <div>
                       <p className="text-lg font-medium text-blue-600 dark:text-blue-400 mb-2">
-                        {files.length} file(s) selected
+                        已选择 {files.length} 个文件
                       </p>
                       <div className="max-h-32 overflow-y-auto text-sm text-slate-600 dark:text-slate-400">
                         {files.map((file, index) => (
@@ -307,10 +303,10 @@ export default function TranslatePage() {
                   ) : (
                     <>
                       <p className="text-lg font-medium mb-2">
-                        Drop your files here or click to browse
+                        拖拽文件到此处或点击浏览
                       </p>
                       <p className="text-sm text-slate-500">
-                        Supports: JPG, PNG, WEBP, ZIP, CBZ
+                        支持格式：JPG、PNG、WEBP、ZIP、CBZ
                       </p>
                     </>
                   )}
@@ -328,7 +324,7 @@ export default function TranslatePage() {
                 className="mt-1"
               />
               <label htmlFor="rights" className="text-sm text-slate-700 dark:text-slate-300">
-                I confirm that I have the legal rights to translate and modify this content, or it is in the public domain.
+                我确认拥有翻译和修改此内容的合法权利，或该内容属于公共领域。
               </label>
             </div>
 
@@ -342,10 +338,10 @@ export default function TranslatePage() {
               {isUploading ? (
                 <>
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Uploading...
+                  上传中...
                 </>
               ) : (
-                'Start Translation'
+                '开始翻译'
               )}
             </Button>
           </CardContent>

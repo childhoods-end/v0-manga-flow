@@ -24,7 +24,8 @@
       "Bash(pnpm remove:*)",
       "Bash(psql:*)",
       "Bash(git restore:*)",
-      "Bash(pnpm approve-builds:*)"
+      "Bash(pnpm approve-builds:*)",
+      "Bash(test:*)"
     ],
     "deny": [],
     "ask": []

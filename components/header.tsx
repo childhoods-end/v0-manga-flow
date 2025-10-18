@@ -6,13 +6,10 @@ import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase/client"
-import { LanguageSwitcher } from "@/components/language-switcher"
-import { useTranslations } from 'next-intl'
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const router = useRouter()
-  const t = useTranslations()
 
   async function handleStartTranslating() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -41,28 +38,27 @@ export function Header() {
             href="#features"
             className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
-            Features
+            功能特性
           </Link>
           <Link
             href="#how-it-works"
             className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
-            How It Works
+            使用方法
           </Link>
           <Link
             href="#pricing"
             className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
-            Pricing
+            定价方案
           </Link>
         </div>
 
         {/* Auth Buttons */}
         <div className="hidden items-center gap-3 md:flex">
-          <LanguageSwitcher />
           <Link href="/auth">
             <Button variant="ghost" size="sm">
-              {t('auth.signIn')}
+              登录
             </Button>
           </Link>
           <Button
@@ -70,7 +66,7 @@ export function Header() {
             onClick={handleStartTranslating}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
-            {t('home.getStarted')}
+            开始使用
           </Button>
         </div>
 
@@ -89,29 +85,26 @@ export function Header() {
               className="block rounded-lg px-3 py-2 text-base font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
               onClick={() => setMobileMenuOpen(false)}
             >
-              Features
+              功能特性
             </Link>
             <Link
               href="#how-it-works"
               className="block rounded-lg px-3 py-2 text-base font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
               onClick={() => setMobileMenuOpen(false)}
             >
-              How It Works
+              使用方法
             </Link>
             <Link
               href="#pricing"
               className="block rounded-lg px-3 py-2 text-base font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
               onClick={() => setMobileMenuOpen(false)}
             >
-              Pricing
+              定价方案
             </Link>
             <div className="flex flex-col gap-2 pt-4">
-              <div className="pb-2">
-                <LanguageSwitcher />
-              </div>
               <Link href="/auth">
                 <Button variant="outline" className="w-full bg-transparent">
-                  {t('auth.signIn')}
+                  登录
                 </Button>
               </Link>
               <Button
@@ -121,7 +114,7 @@ export function Header() {
                 }}
                 className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
               >
-                {t('home.getStarted')}
+                开始使用
               </Button>
             </div>
           </div>

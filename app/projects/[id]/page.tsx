@@ -9,14 +9,11 @@ import { ArrowLeft, Loader2, CheckCircle, Edit } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { track } from '@vercel/analytics'
 import { TextBlockEditor } from '@/components/text-block-editor'
-import { useTranslations } from 'next-intl'
-import { LanguageSwitcher } from '@/components/language-switcher'
 
 export default function ProjectPage() {
   const params = useParams()
   const router = useRouter()
   const projectId = params.id as string
-  const t = useTranslations()
 
   const [project, setProject] = useState<any>(null)
   const [pages, setPages] = useState<any[]>([])
@@ -511,14 +508,13 @@ export default function ProjectPage() {
         <nav className="border-b bg-white/50 dark:bg-slate-900/50 backdrop-blur-lg sticky top-0 z-50">
           <div className="container mx-auto px-4 py-4 flex justify-between items-center">
             <Link href="/" className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              {t('nav.title')}
+              MangaFlow
             </Link>
             <div className="flex items-center gap-3">
-              <LanguageSwitcher />
               <Link href="/">
                 <Button variant="outline" size="sm">
                   <ArrowLeft className="w-4 h-4 mr-2" />
-                  {t('nav.backToHome')}
+                  返回首页
                 </Button>
               </Link>
             </div>
@@ -527,10 +523,10 @@ export default function ProjectPage() {
         <div className="container mx-auto px-4 py-12 max-w-4xl">
           <Card className="border-2 border-red-200 bg-red-50 dark:bg-red-950/30">
             <CardContent className="py-12 text-center">
-              <h2 className="text-2xl font-bold mb-2 text-red-600 dark:text-red-400">Error</h2>
-              <p className="text-slate-600 dark:text-slate-400">{error || 'Project not found'}</p>
+              <h2 className="text-2xl font-bold mb-2 text-red-600 dark:text-red-400">错误</h2>
+              <p className="text-slate-600 dark:text-slate-400">{error || '项目未找到'}</p>
               <Link href="/translate">
-                <Button className="mt-6">Try Again</Button>
+                <Button className="mt-6">重试</Button>
               </Link>
             </CardContent>
           </Card>
@@ -545,14 +541,13 @@ export default function ProjectPage() {
       <nav className="border-b bg-white/50 dark:bg-slate-900/50 backdrop-blur-lg sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/" className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            {t('nav.title')}
+            MangaFlow
           </Link>
           <div className="flex items-center gap-3">
-            <LanguageSwitcher />
             <Link href="/translate">
               <Button variant="outline" size="sm">
                 <ArrowLeft className="w-4 h-4 mr-2" />
-                {t('nav.newProject')}
+                新建项目
               </Button>
             </Link>
           </div>

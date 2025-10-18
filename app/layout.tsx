@@ -4,14 +4,12 @@ import { GeistSans } from "geist/font/sans"
 import { GeistMono } from "geist/font/mono"
 import { Analytics } from "@vercel/analytics/next"
 import { Suspense } from "react"
-import { NextIntlClientProvider } from 'next-intl'
-import { getLocale, getMessages } from 'next-intl/server'
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "MangaFlow - AI-Powered Comic Translation",
+  title: "MangaFlow - AI 驱动的漫画翻译",
   description:
-    "Translate manga, webtoons, and comics instantly with AI. Break language barriers and enjoy comics from around the world.",
+    "用 AI 即刻翻译漫画、条漫和图像小说。打破语言障碍，畅享来自世界各地的精彩作品。",
   generator: "v0.app",
 }
 
@@ -20,18 +18,13 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const locale = await getLocale()
-  const messages = await getMessages()
-
   return (
-    <html lang={locale}>
+    <html lang="zh">
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable} antialiased`}>
-        <NextIntlClientProvider messages={messages}>
-          <Suspense fallback={null}>
-            {children}
-            <Analytics />
-          </Suspense>
-        </NextIntlClientProvider>
+        <Suspense fallback={null}>
+          {children}
+          <Analytics />
+        </Suspense>
       </body>
     </html>
   )

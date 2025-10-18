@@ -35,19 +35,17 @@ export function HeroSection() {
           {/* Announcement badge */}
           <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-border bg-muted/50 px-4 py-1.5 text-sm">
             <Sparkles className="h-4 w-4 text-primary" />
-            <span className="text-muted-foreground">AI-powered translation in seconds</span>
+            <span className="text-muted-foreground">AI 驱动，秒级翻译</span>
           </div>
 
           {/* Main headline */}
           <h1 className="mx-auto max-w-4xl text-balance text-5xl font-bold tracking-tight sm:text-6xl lg:text-7xl">
-            Translate comics instantly with{" "}
-            <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">AI precision</span>
+            用 <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">AI 精准翻译</span> 即刻阅读漫画
           </h1>
 
           {/* Subheadline */}
           <p className="mx-auto mt-6 max-w-2xl text-pretty text-lg leading-relaxed text-muted-foreground sm:text-xl">
-            Break language barriers and enjoy manga, webtoons, and comics from around the world. Upload, translate, and
-            read in your language—all in one seamless platform.
+            打破语言障碍，畅享来自世界各地的漫画、条漫和图像小说。一站式上传、翻译、阅读，轻松无阻。
           </p>
 
           {/* CTA Buttons */}
@@ -57,11 +55,11 @@ export function HeroSection() {
               onClick={handleStartTranslating}
               className="group h-12 gap-2 bg-primary px-8 text-base font-semibold text-primary-foreground hover:bg-primary/90"
             >
-              Start translating free
+              免费开始翻译
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
             </Button>
             <Button size="lg" variant="outline" className="h-12 px-8 text-base font-semibold bg-transparent">
-              Watch demo
+              观看演示
             </Button>
           </div>
 
@@ -70,7 +68,7 @@ export function HeroSection() {
             <div className="border-b border-border/50 bg-muted/30 px-6 py-4">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium text-foreground">How It Works</span>
+                <span className="text-sm font-medium text-foreground">使用方法</span>
               </div>
             </div>
             <div className="p-8 sm:p-12">
@@ -80,9 +78,9 @@ export function HeroSection() {
                   <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
                     <Upload className="h-8 w-8 text-primary" />
                   </div>
-                  <h3 className="mb-2 text-lg font-semibold">1. Upload</h3>
+                  <h3 className="mb-2 text-lg font-semibold">1. 上传</h3>
                   <p className="text-sm text-muted-foreground">
-                    Upload your manga or comic pages in JPG, PNG, or as a ZIP file
+                    上传您的漫画或图像小说页面（JPG、PNG 或 ZIP 文件）
                   </p>
                 </div>
 
@@ -91,9 +89,9 @@ export function HeroSection() {
                   <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
                     <Wand2 className="h-8 w-8 text-primary" />
                   </div>
-                  <h3 className="mb-2 text-lg font-semibold">2. AI Processing</h3>
+                  <h3 className="mb-2 text-lg font-semibold">2. AI 处理</h3>
                   <p className="text-sm text-muted-foreground">
-                    Our AI detects text bubbles and translates them with context awareness
+                    AI 自动检测文本气泡并进行上下文感知翻译
                   </p>
                 </div>
 
@@ -102,9 +100,9 @@ export function HeroSection() {
                   <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
                     <Languages className="h-8 w-8 text-primary" />
                   </div>
-                  <h3 className="mb-2 text-lg font-semibold">3. Download</h3>
+                  <h3 className="mb-2 text-lg font-semibold">3. 下载</h3>
                   <p className="text-sm text-muted-foreground">
-                    Get your translated pages ready to read in your preferred language
+                    获取已翻译的页面，随时阅读您喜爱的语言版本
                   </p>
                 </div>
               </div>
@@ -116,7 +114,7 @@ export function HeroSection() {
                   onClick={handleStartTranslating}
                   className="bg-primary text-primary-foreground hover:bg-primary/90"
                 >
-                  Try It Now - Free
+                  立即免费试用
                 </Button>
               </div>
             </div>
@@ -130,10 +128,10 @@ export function HeroSection() {
                   <div key={i} className="h-8 w-8 rounded-full border-2 border-background bg-muted" />
                 ))}
               </div>
-              <span>10,000+ active users</span>
+              <span>10,000+ 活跃用户</span>
             </div>
-            <div>★★★★★ 4.9/5 rating</div>
-            <div>500K+ pages translated</div>
+            <div>★★★★★ 4.9/5 评分</div>
+            <div>500K+ 页面已翻译</div>
           </div>
         </div>
       </div>
