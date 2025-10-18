@@ -22,15 +22,31 @@ export default function TranslatePage() {
   const [contentRating, setContentRating] = useState('general')
   const [rightsDeclaration, setRightsDeclaration] = useState(false)
   const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [credits, setCredits] = useState<any>(null)
+  const [showCreditModal, setShowCreditModal] = useState(false)
 
   useEffect(() => {
-    // Get current user
+    // Get current user and credits
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
         setUserEmail(user.email || null)
+        // Fetch credits
+        fetchCredits()
       }
     })
   }, [])
+
+  async function fetchCredits() {
+    try {
+      const response = await fetch('/api/credits')
+      if (response.ok) {
+        const data = await response.json()
+        setCredits(data)
+      }
+    } catch (error) {
+      console.error('Failed to fetch credits:', error)
+    }
+  }
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = event.target.files
@@ -75,6 +91,12 @@ export default function TranslatePage() {
       return
     }
 
+    // Check credits
+    if (credits && credits.remaining_credits < files.length) {
+      setShowCreditModal(true)
+      return
+    }
+
     setIsUploading(true)
 
     try {
@@ -111,6 +133,22 @@ export default function TranslatePage() {
       }
 
       const result = JSON.parse(responseText)
+
+      // Deduct credits
+      try {
+        const creditResponse = await fetch('/api/credits', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount: files.length }),
+        })
+
+        if (creditResponse.ok) {
+          // Refresh credits
+          await fetchCredits()
+        }
+      } catch (creditError) {
+        console.error('Failed to deduct credits:', creditError)
+      }
 
       // Track translation upload
       const user = await supabase.auth.getUser()
@@ -157,6 +195,13 @@ export default function TranslatePage() {
             MangaFlow
           </Link>
           <div className="flex items-center gap-3">
+            {credits && (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <span className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+                  剩余积分: {credits.remaining_credits}
+                </span>
+              </div>
+            )}
             {userEmail && (
               <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                 <User className="w-4 h-4" />
@@ -349,6 +394,46 @@ export default function TranslatePage() {
         </Card>
         <BetaNotice />
       </div>
+
+      {/* Insufficient Credits Modal */}
+      {showCreditModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="max-w-md w-full">
+            <CardHeader>
+              <CardTitle className="text-red-600 dark:text-red-400">积分不足</CardTitle>
+              <CardDescription>
+                您的剩余积分不足以完成此次翻译
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-600 dark:text-slate-400">需要积分:</span>
+                  <span className="font-semibold">{files.length}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-600 dark:text-slate-400">剩余积分:</span>
+                  <span className="font-semibold text-red-600 dark:text-red-400">
+                    {credits?.remaining_credits || 0}
+                  </span>
+                </div>
+              </div>
+              <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-4 rounded-lg">
+                <p className="text-sm text-blue-900 dark:text-blue-100">
+                  请加 QQ 群 <span className="font-semibold">833379386</span> 申请更多积分配额
+                </p>
+              </div>
+              <Button
+                onClick={() => setShowCreditModal(false)}
+                className="w-full"
+                variant="outline"
+              >
+                我知道了
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }

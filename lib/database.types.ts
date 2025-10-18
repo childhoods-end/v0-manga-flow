@@ -305,6 +305,35 @@ export interface Database {
           resolved_at?: string | null
         }
       }
+      user_credits: {
+        Row: {
+          id: string
+          user_id: string
+          total_credits: number
+          used_credits: number
+          remaining_credits: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          total_credits?: number
+          used_credits?: number
+          remaining_credits?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          total_credits?: number
+          used_credits?: number
+          remaining_credits?: number
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
   }
 }
@@ -317,6 +346,7 @@ export type Job = Database['public']['Tables']['jobs']['Row']
 export type ReviewItem = Database['public']['Tables']['review_items']['Row']
 export type BillingUsage = Database['public']['Tables']['billing_usage']['Row']
 export type Report = Database['public']['Tables']['reports']['Row']
+export type UserCredits = Database['public']['Tables']['user_credits']['Row']
 
 export interface BoundingBox {
   x: number
