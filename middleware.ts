@@ -7,7 +7,7 @@ import { locales } from '@/lib/i18n-config'
 const intlMiddleware = createMiddleware({
   locales,
   defaultLocale: 'zh',
-  localePrefix: 'as-needed',
+  localePrefix: 'never',
 })
 
 export async function middleware(request: NextRequest) {

@@ -24,9 +24,7 @@ export function LanguageSwitcher() {
       // Set cookie for next-intl
       document.cookie = `NEXT_LOCALE=${locale}; path=/; max-age=31536000`
 
-      // Update the URL with the new locale
-      const newPathname = pathname.replace(`/${currentLocale}`, `/${locale}`)
-      router.push(newPathname === pathname ? `/${locale}${pathname}` : newPathname)
+      // Refresh to apply new locale
       router.refresh()
     })
   }
