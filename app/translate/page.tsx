@@ -22,6 +22,7 @@ export default function TranslatePage() {
   const [contentRating, setContentRating] = useState('general')
   const [rightsDeclaration, setRightsDeclaration] = useState(false)
   const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
   const [credits, setCredits] = useState<any>(null)
   const [showCreditModal, setShowCreditModal] = useState(false)
 
@@ -30,6 +31,7 @@ export default function TranslatePage() {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
         setUserEmail(user.email || null)
+        setUserId(user.id)
         // Fetch credits
         fetchCredits()
       }
