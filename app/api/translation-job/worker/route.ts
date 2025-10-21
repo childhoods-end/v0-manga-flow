@@ -8,6 +8,60 @@ import { put } from '@vercel/blob'
 export const runtime = 'nodejs'
 export const maxDuration = 60 // Max duration on Vercel Pro plan
 
+// Timeout limits for each stage (in milliseconds)
+const TIMEOUTS = {
+  OCR: 35000,        // 35 seconds
+  TRANSLATION: 20000, // 20 seconds
+  RENDER: 15000,     // 15 seconds
+  UPLOAD: 10000,     // 10 seconds
+}
+
+const MAX_RETRIES = 2
+
+/**
+ * Helper to run a promise with timeout
+ */
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  errorMessage: string
+): Promise<T> {
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error(`${errorMessage} (timeout after ${timeoutMs}ms)`)), timeoutMs)
+  )
+  return Promise.race([promise, timeoutPromise])
+}
+
+/**
+ * Helper to retry an operation with exponential backoff
+ */
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  operationName: string,
+  maxRetries: number = MAX_RETRIES
+): Promise<T> {
+  let lastError: Error | null = null
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`${operationName}: Attempt ${attempt}/${maxRetries}`)
+      return await operation()
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error('Unknown error')
+      console.error(`${operationName} attempt ${attempt} failed:`, lastError.message)
+
+      if (attempt < maxRetries) {
+        // Exponential backoff: 1s, 2s, 4s, etc.
+        const delayMs = Math.pow(2, attempt - 1) * 1000
+        console.log(`Retrying in ${delayMs}ms...`)
+        await new Promise(resolve => setTimeout(resolve, delayMs))
+      }
+    }
+  }
+
+  throw lastError || new Error(`${operationName} failed after ${maxRetries} attempts`)
+}
+
 /**
  * Background worker that processes translation jobs
  * Processes ONE page per invocation to avoid timeout
@@ -99,15 +153,24 @@ export async function POST(request: NextRequest) {
     }
 
     const page = pages[currentPage]
-    console.log(`Processing page ${currentPage + 1}/${pages.length}`)
+    const pageStartTime = Date.now()
+    console.log(`\n========== Processing page ${currentPage + 1}/${pages.length} (Page ID: ${page.id}) ==========`)
+
+    // Track stage timings for monitoring
+    const stageTiming: Record<string, number> = {}
 
     try {
-      // Get image buffer
+      // Stage 1: Fetch and optimize image
+      const fetchStartTime = Date.now()
       let imageBuffer: Buffer
 
       if (page.original_blob_url.startsWith('http')) {
-        console.log('Fetching image from URL:', page.original_blob_url)
-        const response = await fetch(page.original_blob_url)
+        console.log('📥 Fetching image from URL:', page.original_blob_url)
+        const response = await withTimeout(
+          fetch(page.original_blob_url),
+          10000,
+          'Image fetch timeout'
+        )
         if (!response.ok) {
           throw new Error(`Failed to fetch image: ${response.statusText}`)
         }
@@ -119,18 +182,27 @@ export async function POST(request: NextRequest) {
         imageBuffer = await readFile(imagePath)
       }
 
-      // Optimize image for faster OCR - resize to max 1500px width
+      stageTiming.fetch = Date.now() - fetchStartTime
+      console.log(`✅ Image fetched in ${stageTiming.fetch}ms, size: ${imageBuffer.length} bytes`)
+
+      // Optimize image for faster OCR - resize to max 1200px width (reduced from 1500px)
+      const optimizeStartTime = Date.now()
       const sharp = (await import('sharp')).default
       const metadata = await sharp(imageBuffer).metadata()
 
-      if (metadata.width && metadata.width > 1500) {
-        console.log(`Resizing image from ${metadata.width}px to 1500px for faster OCR`)
+      if (metadata.width && metadata.width > 1200) {
+        console.log(`🔧 Resizing image from ${metadata.width}px to 1200px for faster OCR`)
         imageBuffer = await sharp(imageBuffer)
-          .resize(1500, null, { withoutEnlargement: true })
+          .resize(1200, null, { withoutEnlargement: true })
+          .jpeg({ quality: 90 }) // Convert to JPEG for smaller size
           .toBuffer()
       }
 
-      console.log('Performing OCR...')
+      stageTiming.optimize = Date.now() - optimizeStartTime
+      console.log(`✅ Image optimized in ${stageTiming.optimize}ms, final size: ${imageBuffer.length} bytes`)
+
+      // Stage 2: Perform OCR with timeout and retry
+      console.log('\n🔍 Stage 2: OCR Processing')
       const ocrStartTime = Date.now()
 
       // Determine OCR language
@@ -151,15 +223,45 @@ export async function POST(request: NextRequest) {
       const ocrProvider = process.env.GOOGLE_CLOUD_VISION_KEY ? 'google' : 'tesseract'
       console.log(`Using OCR provider: ${ocrProvider}`)
 
-      const ocrResults = await performOCR(imageBuffer, ocrProvider, {
-        language: getOCRLanguageCode(project.source_language),
-      })
+      let ocrResults
+      try {
+        ocrResults = await withRetry(
+          async () => {
+            return await withTimeout(
+              performOCR(imageBuffer, ocrProvider, {
+                language: getOCRLanguageCode(project.source_language),
+              }),
+              TIMEOUTS.OCR,
+              'OCR operation timeout'
+            )
+          },
+          'OCR'
+        )
 
-      const ocrElapsed = Math.round((Date.now() - ocrStartTime) / 1000)
-      console.log(`OCR found ${ocrResults.length} text blocks in ${ocrElapsed}s`)
+        stageTiming.ocr = Date.now() - ocrStartTime
+        console.log(`✅ OCR completed in ${stageTiming.ocr}ms, found ${ocrResults.length} text blocks`)
+      } catch (ocrError) {
+        console.error('❌ OCR failed after retries:', ocrError)
+
+        // Save OCR error and skip to next page
+        await supabaseAdmin
+          .from('pages')
+          .update({
+            metadata: {
+              ocr_error: ocrError instanceof Error ? ocrError.message : 'Unknown OCR error',
+              ocr_error_time: new Date().toISOString(),
+              stage_timing: stageTiming
+            }
+          })
+          .eq('id', page.id)
+
+        // Mark page as processed but failed, continue to next page
+        throw new Error(`OCR failed: ${ocrError instanceof Error ? ocrError.message : 'Unknown error'}`)
+      }
 
       if (ocrResults.length > 0) {
-        // Translate text blocks
+        // Stage 3: Translate text blocks with timeout and retry
+        console.log('\n🌐 Stage 3: Translation Processing')
         const translationBlocks: TranslationBlock[] = ocrResults.map((ocr, index) => ({
           id: `${page.id}-${index}`,
           text: ocr.text,
@@ -167,18 +269,42 @@ export async function POST(request: NextRequest) {
 
         // Use Google Translate if Vision API is available, otherwise OpenAI
         const translationProvider = process.env.GOOGLE_CLOUD_VISION_KEY ? 'google' : 'openai'
-        console.log(`Translating with ${translationProvider}...`)
+        console.log(`Using translation provider: ${translationProvider}`)
         const translateStartTime = Date.now()
 
-        const translations = await translateBlocks(
-          translationBlocks,
-          project.source_language,
-          project.target_language,
-          translationProvider
-        )
+        let translations
+        try {
+          translations = await withRetry(
+            async () => {
+              return await withTimeout(
+                translateBlocks(
+                  translationBlocks,
+                  project.source_language,
+                  project.target_language,
+                  translationProvider
+                ),
+                TIMEOUTS.TRANSLATION,
+                'Translation operation timeout'
+              )
+            },
+            'Translation'
+          )
 
-        const translateElapsed = Math.round((Date.now() - translateStartTime) / 1000)
-        console.log(`Translation completed in ${translateElapsed}s`)
+          stageTiming.translation = Date.now() - translateStartTime
+          console.log(`✅ Translation completed in ${stageTiming.translation}ms`)
+        } catch (translationError) {
+          console.error('❌ Translation failed after retries:', translationError)
+
+          // Fallback: Use original text if translation fails
+          console.log('⚠️  Using original text as fallback')
+          translations = translationBlocks.map(block => ({
+            id: block.id,
+            originalText: block.text,
+            translatedText: block.text,
+            provider: translationProvider
+          }))
+          stageTiming.translation = Date.now() - translateStartTime
+        }
 
         // Save to database with estimated font size and orientation
         const textBlocksToInsert = ocrResults.map((ocr, index) => {
@@ -199,78 +325,138 @@ export async function POST(request: NextRequest) {
           }
         })
 
+        // Stage 4: Save text blocks to database
+        console.log('\n💾 Stage 4: Saving to database')
+        const saveStartTime = Date.now()
+
         await supabaseAdmin
           .from('text_blocks')
           .insert(textBlocksToInsert)
 
-        console.log(`Saved ${textBlocksToInsert.length} text blocks to database`)
+        stageTiming.save = Date.now() - saveStartTime
+        console.log(`✅ Saved ${textBlocksToInsert.length} text blocks in ${stageTiming.save}ms`)
 
-        // Render the translated page immediately
-        console.log(`🎨 Starting render for page ${page.id} with ${textBlocksToInsert.length} text blocks`)
-        console.log(`Image buffer size: ${imageBuffer.length} bytes`)
+        // Stage 5: Render the translated page with timeout and retry
+        console.log('\n🎨 Stage 5: Rendering page')
+        const renderStartTime = Date.now()
 
         try {
-          const renderStartTime = Date.now()
-
-          const renderedBuffer = await renderPage(
-            imageBuffer,
-            textBlocksToInsert as any,
-            { maskOriginalText: true }
+          const renderedBuffer = await withRetry(
+            async () => {
+              return await withTimeout(
+                renderPage(
+                  imageBuffer,
+                  textBlocksToInsert as any,
+                  { maskOriginalText: true }
+                ),
+                TIMEOUTS.RENDER,
+                'Render operation timeout'
+              )
+            },
+            'Render',
+            1 // Only 1 retry for render to save time
           )
 
-          const renderElapsed = Date.now() - renderStartTime
-          console.log(`✅ Render completed in ${renderElapsed}ms, output size: ${renderedBuffer.length} bytes`)
+          stageTiming.render = Date.now() - renderStartTime
+          console.log(`✅ Render completed in ${stageTiming.render}ms, output size: ${renderedBuffer.length} bytes`)
 
-          // Upload rendered image to Vercel Blob
-          console.log(`📤 Uploading rendered image to Vercel Blob...`)
+          // Stage 6: Upload rendered image to Vercel Blob with timeout and retry
+          console.log('\n📤 Stage 6: Uploading to Vercel Blob')
           const uploadStartTime = Date.now()
 
-          const renderedBlob = await put(
-            `rendered/${project.id}/${page.id}.png`,
-            renderedBuffer,
-            { access: 'public' }
-          )
-
-          const uploadElapsed = Date.now() - uploadStartTime
-          console.log(`✅ Upload completed in ${uploadElapsed}ms: ${renderedBlob.url}`)
-
-          // Update page with rendered URL
-          const { error: updateError } = await supabaseAdmin
-            .from('pages')
-            .update({ processed_blob_url: renderedBlob.url })
-            .eq('id', page.id)
-
-          if (updateError) {
-            console.error(`❌ Failed to update page in database:`, updateError)
-            throw updateError
-          }
-
-          console.log(`✅ Page ${page.id} fully processed and saved`)
-        } catch (renderError: any) {
-          console.error(`❌ Render/upload failed for page ${page.id}:`)
-          console.error(`Error type: ${renderError.constructor.name}`)
-          console.error(`Error message: ${renderError.message}`)
-          console.error(`Error stack:`, renderError.stack)
-
-          // Save error to database for debugging
           try {
+            const renderedBlob = await withRetry(
+              async () => {
+                return await withTimeout(
+                  put(
+                    `rendered/${project.id}/${page.id}.png`,
+                    renderedBuffer,
+                    { access: 'public' }
+                  ),
+                  TIMEOUTS.UPLOAD,
+                  'Upload operation timeout'
+                )
+              },
+              'Upload',
+              1 // Only 1 retry for upload
+            )
+
+            stageTiming.upload = Date.now() - uploadStartTime
+            console.log(`✅ Upload completed in ${stageTiming.upload}ms: ${renderedBlob.url}`)
+
+            // Update page with rendered URL and timing data
+            const { error: updateError } = await supabaseAdmin
+              .from('pages')
+              .update({
+                processed_blob_url: renderedBlob.url,
+                metadata: {
+                  stage_timing: stageTiming,
+                  processed_at: new Date().toISOString()
+                }
+              })
+              .eq('id', page.id)
+
+            if (updateError) {
+              console.error(`❌ Failed to update page in database:`, updateError)
+            } else {
+              console.log(`✅ Page ${page.id} fully processed and saved`)
+            }
+          } catch (uploadError: any) {
+            console.error(`❌ Upload failed after retries:`, uploadError.message)
+
+            // Save upload error but don't fail the page
             await supabaseAdmin
               .from('pages')
               .update({
                 metadata: {
-                  render_error: renderError.message,
-                  render_error_time: new Date().toISOString()
+                  upload_error: uploadError.message,
+                  upload_error_time: new Date().toISOString(),
+                  stage_timing: stageTiming
                 }
               })
               .eq('id', page.id)
-          } catch (dbError) {
-            console.error('Failed to save error to database:', dbError)
-          }
 
-          // Don't fail the whole job if rendering fails
+            console.log('⚠️  Page processed but upload failed - continuing to next page')
+          }
+        } catch (renderError: any) {
+          console.error(`❌ Render failed after retries:`, renderError.message)
+
+          // Save render error but don't fail the page
+          await supabaseAdmin
+            .from('pages')
+            .update({
+              metadata: {
+                render_error: renderError.message,
+                render_error_time: new Date().toISOString(),
+                stage_timing: stageTiming
+              }
+            })
+            .eq('id', page.id)
+
+          console.log('⚠️  Page processed but render failed - continuing to next page')
         }
       } else {
-        console.log('No text found on this page')
+        console.log('⚠️  No text found on this page')
+      }
+
+      // Calculate total page processing time
+      const totalPageTime = Date.now() - pageStartTime
+      stageTiming.total = totalPageTime
+
+      // Log performance summary
+      console.log('\n📊 Performance Summary:')
+      console.log(`   Total time: ${totalPageTime}ms (${(totalPageTime / 1000).toFixed(1)}s)`)
+      console.log(`   Fetch: ${stageTiming.fetch || 0}ms`)
+      console.log(`   Optimize: ${stageTiming.optimize || 0}ms`)
+      console.log(`   OCR: ${stageTiming.ocr || 0}ms`)
+      console.log(`   Translation: ${stageTiming.translation || 0}ms`)
+      console.log(`   Save: ${stageTiming.save || 0}ms`)
+      console.log(`   Render: ${stageTiming.render || 0}ms`)
+      console.log(`   Upload: ${stageTiming.upload || 0}ms`)
+
+      // Warning if processing took too long
+      if (totalPageTime > 45000) {
+        console.warn(`⚠️  WARNING: Page processing took ${(totalPageTime / 1000).toFixed(1)}s - approaching timeout limit`)
       }
 
       // Update progress
@@ -285,7 +471,8 @@ export async function POST(request: NextRequest) {
         })
         .eq('id', jobId)
 
-      console.log(`Page ${currentPage} completed. Progress: ${progress}%`)
+      console.log(`\n✅ Page ${currentPage + 1}/${pages.length} completed. Progress: ${progress}%`)
+      console.log(`========================================\n`)
 
       // Check if this was the last page
       if (newCurrentPage >= pages.length) {
@@ -318,23 +505,75 @@ export async function POST(request: NextRequest) {
         hasMore: newCurrentPage < pages.length,
       })
     } catch (pageError) {
-      console.error(`Failed to process page ${currentPage}:`, pageError)
+      console.error(`\n❌ Failed to process page ${currentPage + 1}:`, pageError)
 
-      // Mark job as failed
+      // Save error details to page metadata
+      await supabaseAdmin
+        .from('pages')
+        .update({
+          metadata: {
+            page_error: pageError instanceof Error ? pageError.message : 'Unknown error',
+            page_error_time: new Date().toISOString(),
+            page_error_stack: pageError instanceof Error ? pageError.stack : undefined,
+            stage_timing: stageTiming
+          }
+        })
+        .eq('id', page.id)
+
+      // Don't fail the entire job - skip to next page instead
+      console.log('⚠️  Skipping failed page and continuing to next page...')
+
+      const newCurrentPage = currentPage + 1
+      const progress = Math.round((newCurrentPage / pages.length) * 100)
+
       await supabaseAdmin
         .from('translation_jobs')
         .update({
-          status: 'failed',
-          error_message: pageError instanceof Error ? pageError.message : 'Unknown error',
+          current_page: newCurrentPage,
+          progress,
         })
         .eq('id', jobId)
 
-      await supabaseAdmin
-        .from('projects')
-        .update({ status: 'failed' })
-        .eq('id', job.project_id)
+      // If this was the last page, complete the job
+      if (newCurrentPage >= pages.length) {
+        await supabaseAdmin
+          .from('translation_jobs')
+          .update({
+            status: 'completed',
+            progress: 100,
+            completed_at: new Date().toISOString(),
+          })
+          .eq('id', jobId)
 
-      throw pageError
+        await supabaseAdmin
+          .from('projects')
+          .update({
+            status: 'ready',
+            processed_pages: pages.length,
+          })
+          .eq('id', job.project_id)
+
+        return NextResponse.json({
+          success: true,
+          message: 'Job completed with some failed pages',
+          jobId,
+          processedPage: currentPage,
+          totalPages: pages.length,
+          progress: 100,
+          hasMore: false,
+          pageError: pageError instanceof Error ? pageError.message : 'Unknown error'
+        })
+      }
+
+      return NextResponse.json({
+        success: true,
+        jobId,
+        processedPage: currentPage,
+        totalPages: pages.length,
+        progress,
+        hasMore: newCurrentPage < pages.length,
+        pageError: pageError instanceof Error ? pageError.message : 'Unknown error'
+      })
     }
   } catch (error) {
     console.error('Worker error:', error)
