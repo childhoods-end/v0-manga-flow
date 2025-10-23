@@ -332,12 +332,24 @@ export async function POST(request: NextRequest) {
         console.log('\n💾 Stage 4: Saving to database')
         const saveStartTime = Date.now()
 
-        await supabaseAdmin
+        // Check if text blocks already exist for this page
+        const { data: existingBlocks } = await supabaseAdmin
           .from('text_blocks')
-          .insert(textBlocksToInsert)
+          .select('id')
+          .eq('page_id', page.id)
 
-        stageTiming.save = Date.now() - saveStartTime
-        console.log(`✅ Saved ${textBlocksToInsert.length} text blocks in ${stageTiming.save}ms`)
+        // Only insert if no existing blocks to avoid duplicates
+        if (!existingBlocks || existingBlocks.length === 0) {
+          await supabaseAdmin
+            .from('text_blocks')
+            .insert(textBlocksToInsert)
+
+          stageTiming.save = Date.now() - saveStartTime
+          console.log(`✅ Saved ${textBlocksToInsert.length} text blocks in ${stageTiming.save}ms`)
+        } else {
+          stageTiming.save = Date.now() - saveStartTime
+          console.log(`⏭️  Skipped insert - ${existingBlocks.length} text blocks already exist for page ${page.id}`)
+        }
 
         // Stage 5: Render the translated page with timeout and retry
         console.log('\n🎨 Stage 5: Rendering page')

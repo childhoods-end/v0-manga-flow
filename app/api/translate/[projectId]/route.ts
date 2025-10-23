@@ -122,23 +122,37 @@ export async function POST(
 
         console.log('Translation completed')
 
-        // Save text blocks to database
-        const textBlocksToInsert = ocrResults.map((ocr, index) => ({
-          page_id: page.id,
-          bbox: ocr.bbox,
-          ocr_text: ocr.text,
-          translated_text: translations[index]?.translatedText || '',
-          confidence: ocr.confidence,
-          status: 'translated',
-        }))
-
-        const { error: insertError, data: insertedBlocks } = await supabaseAdmin
+        // Check if text blocks already exist for this page
+        const { data: existingBlocks } = await supabaseAdmin
           .from('text_blocks')
-          .insert(textBlocksToInsert)
-          .select()
+          .select('id')
+          .eq('page_id', page.id)
 
-        if (insertError) {
-          console.error('Failed to save text blocks:', insertError)
+        // Only insert if no existing blocks
+        let insertedBlocks = existingBlocks
+        if (!existingBlocks || existingBlocks.length === 0) {
+          // Save text blocks to database
+          const textBlocksToInsert = ocrResults.map((ocr, index) => ({
+            page_id: page.id,
+            bbox: ocr.bbox,
+            ocr_text: ocr.text,
+            translated_text: translations[index]?.translatedText || '',
+            confidence: ocr.confidence,
+            status: 'translated',
+          }))
+
+          const { error: insertError, data: inserted } = await supabaseAdmin
+            .from('text_blocks')
+            .insert(textBlocksToInsert)
+            .select()
+
+          if (insertError) {
+            console.error('Failed to save text blocks:', insertError)
+          } else {
+            insertedBlocks = inserted
+          }
+        } else {
+          console.log(`Skipping insert - ${existingBlocks.length} text blocks already exist for page ${page.id}`)
         }
 
         // Render the translated page immediately

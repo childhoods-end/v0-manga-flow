@@ -55,7 +55,7 @@ export function HeroSection() {
               onClick={handleStartTranslating}
               className="group h-12 gap-2 bg-primary px-8 text-base font-semibold text-primary-foreground hover:bg-primary/90"
             >
-              免费开始翻译
+              开始翻译
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
             </Button>
             <Button size="lg" variant="outline" className="h-12 px-8 text-base font-semibold bg-transparent">
@@ -114,7 +114,7 @@ export function HeroSection() {
                   onClick={handleStartTranslating}
                   className="bg-primary text-primary-foreground hover:bg-primary/90"
                 >
-                  立即免费试用
+                  立即试用
                 </Button>
               </div>
             </div>

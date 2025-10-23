@@ -30,6 +30,29 @@ export default function ProjectPage() {
 
   useEffect(() => {
     loadProject()
+
+    // Set up real-time updates for pages
+    const channel = supabase
+      .channel(`project-${projectId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'pages',
+          filter: `project_id=eq.${projectId}`,
+        },
+        (payload) => {
+          console.log('📡 Page updated:', payload)
+          // Reload project to get latest data
+          loadProject()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [projectId])
 
   async function loadProject() {

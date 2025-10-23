@@ -158,10 +158,12 @@ function groupLinesIntoSpeechBubbles(lines: OCRResult[]): OCRResult[] {
 
     if (isVertical) {
       // For vertical text: lines in same bubble are horizontally close
-      shouldMerge = horizontalDist < avgWidth * 0.8 && verticalDist < avgHeight * 2.5
+      // Stricter horizontal distance, more lenient vertical distance for manga bubbles
+      shouldMerge = horizontalDist < avgWidth * 0.6 && verticalDist < avgHeight * 3.0
     } else {
       // For horizontal text: lines in same bubble are vertically close
-      shouldMerge = verticalDist < avgHeight * 1.5 && horizontalDist < avgWidth * 0.5
+      // Stricter vertical distance, more lenient horizontal distance for manga bubbles
+      shouldMerge = verticalDist < avgHeight * 1.2 && horizontalDist < avgWidth * 0.8
     }
 
     if (shouldMerge) {
