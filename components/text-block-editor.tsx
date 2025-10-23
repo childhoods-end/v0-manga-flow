@@ -43,11 +43,13 @@ export function TextBlockEditor({
   onClose,
 }: TextBlockEditorProps) {
   const [selectedBlock, setSelectedBlock] = useState<TextBlock | null>(null)
+  const [selectedBlocks, setSelectedBlocks] = useState<Set<string>>(new Set())
   const [localTextBlocks, setLocalTextBlocks] = useState<TextBlock[]>(textBlocks)
   const [isDragging, setIsDragging] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [saving, setSaving] = useState(false)
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false)
 
   // Sync textBlocks prop to local state
   useEffect(() => {
@@ -116,6 +118,7 @@ export function TextBlockEditor({
     // Draw all text blocks
     localTextBlocks.forEach((block) => {
       const isSelected = selectedBlock?.id === block.id
+      const isMultiSelected = selectedBlocks.has(block.id)
       const bbox = block.bbox
       const displayText = block.translated_text || ''
       // Use stored font_size if valid, otherwise calculate from bbox and text
@@ -193,8 +196,8 @@ export function TextBlockEditor({
       }
 
       // Draw bounding box
-      ctx.strokeStyle = isSelected ? '#3b82f6' : '#10b981'
-      ctx.lineWidth = isSelected ? 3 : 2
+      ctx.strokeStyle = isSelected ? '#3b82f6' : isMultiSelected ? '#10b981' : '#ef4444'
+      ctx.lineWidth = isSelected || isMultiSelected ? 3 : 2
       ctx.strokeRect(scaledBbox.x, scaledBbox.y, scaledBbox.width, scaledBbox.height)
 
       // Draw resize handle for selected block
@@ -230,18 +233,38 @@ export function TextBlockEditor({
         y >= bbox.y &&
         y <= bbox.y + bbox.height
       ) {
+        // Multi-select mode (Ctrl/Cmd + Click)
+        if (isMultiSelectMode || e.ctrlKey || e.metaKey) {
+          setSelectedBlocks(prev => {
+            const newSet = new Set(prev)
+            if (newSet.has(block.id)) {
+              newSet.delete(block.id)
+            } else {
+              newSet.add(block.id)
+            }
+            return newSet
+          })
+          setSelectedBlock(null)
+          return
+        }
+
+        // Regular single select
         // If font_size is 0 or missing, calculate initial value
         if (!block.font_size || block.font_size === 0) {
           const initialFontSize = calculateInitialFontSize(block.translated_text || '', block.bbox)
           updateLocalBlock(block.id, { font_size: initialFontSize })
         }
         setSelectedBlock(block)
+        setSelectedBlocks(new Set())
         return
       }
     }
 
     // Click outside - deselect
     setSelectedBlock(null)
+    if (!isMultiSelectMode) {
+      setSelectedBlocks(new Set())
+    }
   }
 
   function handleCanvasMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
@@ -390,6 +413,82 @@ export function TextBlockEditor({
     }
   }
 
+  async function handleMergeBlocks() {
+    if (selectedBlocks.size < 2) {
+      alert('请选择至少2个文本框进行合并')
+      return
+    }
+
+    setSaving(true)
+    try {
+      const blocksToMerge = localTextBlocks.filter(b => selectedBlocks.has(b.id))
+
+      // Calculate merged bounding box (union of all boxes)
+      const minX = Math.min(...blocksToMerge.map(b => b.bbox.x))
+      const minY = Math.min(...blocksToMerge.map(b => b.bbox.y))
+      const maxX = Math.max(...blocksToMerge.map(b => b.bbox.x + b.bbox.width))
+      const maxY = Math.max(...blocksToMerge.map(b => b.bbox.y + b.bbox.height))
+
+      const mergedBbox = {
+        x: minX,
+        y: minY,
+        width: maxX - minX,
+        height: maxY - minY
+      }
+
+      // Merge translated text (join with space or newline based on orientation)
+      const sortedBlocks = [...blocksToMerge].sort((a, b) => {
+        // Sort by position (top to bottom, left to right for horizontal text)
+        const verticalDiff = a.bbox.y - b.bbox.y
+        if (Math.abs(verticalDiff) > 20) {
+          return verticalDiff
+        }
+        return a.bbox.x - b.bbox.x
+      })
+
+      const mergedText = sortedBlocks
+        .map(b => b.translated_text || '')
+        .filter(t => t.trim())
+        .join('\n')
+
+      const avgFontSize = Math.round(
+        blocksToMerge.reduce((sum, b) => sum + (b.font_size || 16), 0) / blocksToMerge.length
+      )
+
+      // Keep the first block and update it with merged data
+      const firstBlock = blocksToMerge[0]
+      await onSave(firstBlock.id, {
+        bbox: mergedBbox,
+        translated_text: mergedText,
+        font_size: avgFontSize,
+        is_vertical: firstBlock.is_vertical
+      })
+
+      // Delete other blocks
+      for (let i = 1; i < blocksToMerge.length; i++) {
+        await onDelete(blocksToMerge[i].id)
+      }
+
+      // Update local state
+      setLocalTextBlocks(prev => {
+        const remaining = prev.filter(b => !selectedBlocks.has(b.id) || b.id === firstBlock.id)
+        return remaining.map(b =>
+          b.id === firstBlock.id
+            ? { ...b, bbox: mergedBbox, translated_text: mergedText, font_size: avgFontSize }
+            : b
+        )
+      })
+
+      setSelectedBlocks(new Set())
+      setSelectedBlock(null)
+    } catch (error) {
+      console.error('Failed to merge blocks:', error)
+      alert('合并失败，请重试')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <Card className="w-full max-w-7xl max-h-[90vh] flex flex-col">
@@ -415,9 +514,40 @@ export function TextBlockEditor({
                   style={{ cursor: isDragging ? 'move' : isResizing ? 'nwse-resize' : 'crosshair' }}
                 />
               </div>
-              <div className="mt-4 text-sm text-slate-600 dark:text-slate-400">
-                <p>💡 点击文本框选择，拖动移动位置，拖动右下角调整大小</p>
-                <p>已翻译: {localTextBlocks.filter(b => b.translated_text).length} / {localTextBlocks.length}</p>
+              <div className="mt-4 space-y-2">
+                <div className="flex gap-2">
+                  <Button
+                    variant={isMultiSelectMode ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => {
+                      setIsMultiSelectMode(!isMultiSelectMode)
+                      if (!isMultiSelectMode) {
+                        setSelectedBlock(null)
+                      } else {
+                        setSelectedBlocks(new Set())
+                      }
+                    }}
+                  >
+                    {isMultiSelectMode ? '✓ 多选模式' : '多选模式'}
+                  </Button>
+                  {selectedBlocks.size >= 2 && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={handleMergeBlocks}
+                      disabled={saving}
+                    >
+                      合并 {selectedBlocks.size} 个文本框
+                    </Button>
+                  )}
+                </div>
+                <div className="text-sm text-slate-600 dark:text-slate-400">
+                  <p>💡 点击选择，拖动移动，拖右下角调整大小，Ctrl+点击多选</p>
+                  <p>已翻译: {localTextBlocks.filter(b => b.translated_text).length} / {localTextBlocks.length}</p>
+                  {selectedBlocks.size > 0 && (
+                    <p className="text-green-600">已选择: {selectedBlocks.size} 个文本框</p>
+                  )}
+                </div>
               </div>
             </div>
 

@@ -137,6 +137,7 @@ export default function ProjectPage() {
 
       // Poll for status and trigger worker if still pending
       let pollCount = 0
+      let lastProgress = 0
       const pollInterval = setInterval(async () => {
         try {
           pollCount++
@@ -148,9 +149,17 @@ export default function ProjectPage() {
             const current = statusData.currentPage || 0
             const total = statusData.totalPages || 0
 
+            // Update progress message
             setTranslationProgress(
               `Translating... ${progress}% (${current}/${total} pages)`
             )
+
+            // Reload pages data when progress changes to update thumbnails
+            if (progress > lastProgress && progress > 0) {
+              console.log(`Progress updated: ${lastProgress}% -> ${progress}%`)
+              lastProgress = progress
+              loadProject()
+            }
 
             // If still pending after 10 seconds, manually trigger worker
             if (statusData.status === 'pending' && pollCount > 5) {
@@ -185,7 +194,7 @@ export default function ProjectPage() {
         } catch (pollError) {
           console.error('Poll error:', pollError)
         }
-      }, 2000) // Poll every 2 seconds
+      }, 1000) // Poll every 1 second for more responsive updates
 
       // Timeout after 5 minutes
       setTimeout(() => {
