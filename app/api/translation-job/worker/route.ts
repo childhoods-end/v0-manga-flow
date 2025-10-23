@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { translateBlocks, TranslationBlock } from '@/lib/translate'
 import { performOCR } from '@/lib/ocr'
-import { renderPage } from '@/lib/render'
+import { renderPage, renderPageSmart } from '@/lib/render'
 import { put } from '@vercel/blob'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60 // Max duration on Vercel Pro plan
+
+// Feature toggle: Use smart Canvas-based rendering for better CJK support
+const USE_SMART_RENDER = process.env.ENABLE_SMART_RENDER !== 'false'
 
 // Timeout limits for each stage (in milliseconds)
 const TIMEOUTS = {
@@ -341,14 +344,36 @@ export async function POST(request: NextRequest) {
         const renderStartTime = Date.now()
 
         try {
+          // Use smart rendering if enabled for better CJK font support and text layout
+          const renderFunction = USE_SMART_RENDER ? renderPageSmart : renderPage
+          console.log(`Using ${USE_SMART_RENDER ? 'smart Canvas' : 'SVG'} rendering`)
+
           const renderedBuffer = await withRetry(
             async () => {
               return await withTimeout(
-                renderPage(
-                  imageBuffer,
-                  textBlocksToInsert as any,
-                  { maskOriginalText: true }
-                ),
+                USE_SMART_RENDER
+                  ? renderPageSmart(
+                      imageBuffer,
+                      textBlocksToInsert as any,
+                      {
+                        maskOriginalText: true,
+                        maxFont: 36,
+                        minFont: 10,
+                        lineHeight: 1.45,
+                        padding: 12,
+                        textAlign: 'center',
+                        verticalAlign: 'middle',
+                        maxLines: 3,
+                        overflowStrategy: 'ellipsis',
+                        shadowBlur: 2,
+                        lang: 'auto'
+                      }
+                    )
+                  : renderPage(
+                      imageBuffer,
+                      textBlocksToInsert as any,
+                      { maskOriginalText: true }
+                    ),
                 TIMEOUTS.RENDER,
                 'Render operation timeout'
               )

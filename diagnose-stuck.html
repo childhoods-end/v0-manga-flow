@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Diagnose Stuck Translation</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: monospace;
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .section {
+      margin: 20px 0;
+      padding: 10px;
+      border: 1px solid #ccc;
+    }
+    .error { color: red; }
+    .success { color: green; }
+    .warning { color: orange; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: left;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔍 Diagnose Stuck Translation</h1>
+
+  <div class="section">
+    <h2>Configuration</h2>
+    <p>Project ID: <strong>fc7f93b0-83f7-415d-86af-b122ade26ddd</strong></p>
+    <button onclick="diagnose()">Diagnose</button>
+    <button onclick="skipFailedPage()">Skip Failed Page</button>
+  </div>
+
+  <div id="output"></div>
+
+  <script>
+    const SUPABASE_URL = 'https://mqzvdzyozthcmlezjkyh.supabase.co'
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1xenZkenlvenRoY21sZXpqa3loIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1OTc5OTM3OCwiZXhwIjoyMDc1Mzc1Mzc4fQ.rgiB3uq412sD9YpFma0K1lISoxXAwDVUPNrLIm30UG8'
+    const PROJECT_ID = 'fc7f93b0-83f7-415d-86af-b122ade26ddd'
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
+
+    async function diagnose() {
+      const output = document.getElementById('output')
+      output.innerHTML = '<p>Loading...</p>'
+
+      try {
+        // Get project
+        const { data: project, error: projectError } = await supabase
+          .from('projects')
+          .select('*')
+          .eq('id', PROJECT_ID)
+          .single()
+
+        if (projectError) throw projectError
+
+        // Get jobs
+        const { data: jobs, error: jobsError } = await supabase
+          .from('translation_jobs')
+          .select('*')
+          .eq('project_id', PROJECT_ID)
+          .order('created_at', { ascending: false })
+
+        if (jobsError) throw jobsError
+
+        // Get pages
+        const { data: pages, error: pagesError } = await supabase
+          .from('pages')
+          .select('*')
+          .eq('project_id', PROJECT_ID)
+          .order('page_index')
+
+        if (pagesError) throw pagesError
+
+        // Get text blocks for each page
+        const pagesWithBlocks = await Promise.all(
+          pages.map(async (page) => {
+            const { data: blocks } = await supabase
+              .from('text_blocks')
+              .select('id, status')
+              .eq('page_id', page.id)
+
+            return { ...page, blocks: blocks || [] }
+          })
+        )
+
+        // Display results
+        let html = '<div class="section">'
+        html += '<h2>📦 Project</h2>'
+        html += `<p>Title: ${project.title}</p>`
+        html += `<p>Status: <span class="${project.status === 'ready' ? 'success' : 'warning'}">${project.status}</span></p>`
+        html += `<p>Processed Pages: ${project.processed_pages || 0}</p>`
+        html += '</div>'
+
+        if (jobs && jobs.length > 0) {
+          const job = jobs[0]
+          html += '<div class="section">'
+          html += '<h2>📋 Translation Job</h2>'
+          html += `<p>Status: <span class="${job.status === 'completed' ? 'success' : 'warning'}">${job.status}</span></p>`
+          html += `<p>Progress: ${job.progress}%</p>`
+          html += `<p>Current Page: ${job.current_page || 0}/${pages.length}</p>`
+          html += `<p>Created: ${new Date(job.created_at).toLocaleString()}</p>`
+          html += `<p>Started: ${job.started_at ? new Date(job.started_at).toLocaleString() : 'N/A'}</p>`
+          html += '</div>'
+        }
+
+        html += '<div class="section">'
+        html += '<h2>📄 Pages</h2>'
+        html += '<table>'
+        html += '<tr><th>Page</th><th>Processed</th><th>Text Blocks</th><th>Error</th><th>Details</th></tr>'
+
+        pagesWithBlocks.forEach((page) => {
+          const metadata = page.metadata || {}
+          const hasError = metadata.page_error || metadata.ocr_error || metadata.render_error || metadata.upload_error
+          const errorType = hasError ? (metadata.page_error ? 'page' : metadata.ocr_error ? 'ocr' : metadata.render_error ? 'render' : 'upload') : null
+
+          html += '<tr>'
+          html += `<td>${page.page_index + 1}</td>`
+          html += `<td>${page.processed_blob_url ? '<span class="success">✅</span>' : '<span class="error">❌</span>'}</td>`
+          html += `<td>${page.blocks.length}</td>`
+          html += `<td>${hasError ? `<span class="error">${errorType}</span>` : '-'}</td>`
+          html += `<td>${hasError ? hasError.substring(0, 100) : '-'}</td>`
+          html += '</tr>'
+        })
+
+        html += '</table>'
+        html += '</div>'
+
+        // Diagnosis
+        html += '<div class="section">'
+        html += '<h2>🔧 Diagnosis</h2>'
+
+        const currentJob = jobs?.[0]
+        if (currentJob && currentJob.status === 'processing') {
+          const currentPage = currentJob.current_page || 0
+          const stuckPage = pagesWithBlocks[currentPage]
+
+          if (stuckPage) {
+            const metadata = stuckPage.metadata || {}
+            const hasError = metadata.page_error || metadata.ocr_error
+
+            if (hasError) {
+              html += `<p class="error">⚠️ Job is stuck at page ${currentPage + 1}/${pages.length}</p>`
+              html += `<p class="error">Error: ${hasError}</p>`
+              html += '<p>Action: Click "Skip Failed Page" to continue</p>'
+            } else {
+              html += `<p class="warning">Job is at page ${currentPage + 1}/${pages.length} with no error recorded</p>`
+              html += '<p>The worker may need to be triggered manually</p>'
+            }
+          }
+        } else if (currentJob && currentJob.status === 'completed') {
+          html += '<p class="success">✅ Job is completed</p>'
+        }
+
+        html += '</div>'
+
+        output.innerHTML = html
+      } catch (error) {
+        output.innerHTML = `<p class="error">Error: ${error.message}</p>`
+        console.error(error)
+      }
+    }
+
+    async function skipFailedPage() {
+      const output = document.getElementById('output')
+
+      try {
+        // Get current job
+        const { data: jobs, error: jobsError } = await supabase
+          .from('translation_jobs')
+          .select('*')
+          .eq('project_id', PROJECT_ID)
+          .order('created_at', { ascending: false })
+          .limit(1)
+
+        if (jobsError || !jobs || jobs.length === 0) {
+          alert('No job found')
+          return
+        }
+
+        const job = jobs[0]
+        const currentPage = job.current_page || 0
+
+        // Get pages
+        const { data: pages } = await supabase
+          .from('pages')
+          .select('*')
+          .eq('project_id', PROJECT_ID)
+          .order('page_index')
+
+        const totalPages = pages?.length || 0
+
+        // Skip to next page
+        const newCurrentPage = currentPage + 1
+        const progress = Math.round((newCurrentPage / totalPages) * 100)
+
+        const { error: updateError } = await supabase
+          .from('translation_jobs')
+          .update({
+            current_page: newCurrentPage,
+            progress,
+          })
+          .eq('id', job.id)
+
+        if (updateError) throw updateError
+
+        // Check if job should be completed
+        if (newCurrentPage >= totalPages) {
+          await supabase
+            .from('translation_jobs')
+            .update({
+              status: 'completed',
+              progress: 100,
+              completed_at: new Date().toISOString(),
+            })
+            .eq('id', job.id)
+
+          await supabase
+            .from('projects')
+            .update({
+              status: 'ready',
+              processed_pages: totalPages,
+            })
+            .eq('id', PROJECT_ID)
+
+          alert('✅ Skipped page and marked job as completed')
+        } else {
+          alert(`✅ Skipped page ${currentPage + 1}, moved to page ${newCurrentPage}. You may need to trigger the worker manually.`)
+        }
+
+        diagnose()
+      } catch (error) {
+        alert(`Error: ${error.message}`)
+        console.error(error)
+      }
+    }
+
+    // Auto-run on load
+    diagnose()
+  </script>
+</body>
+</html>

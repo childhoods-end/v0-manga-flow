@@ -2,6 +2,7 @@ import Tesseract from 'tesseract.js'
 import vision from '@google-cloud/vision'
 
 export type OCRProvider = 'tesseract' | 'google' | 'azure'
+export type BubbleDetectionMode = 'none' | 'auto' | 'opencv'
 
 export interface BBox {
   x: number
@@ -15,11 +16,14 @@ export interface OCRResult {
   bbox: BBox
   confidence: number
   orientation?: 'horizontal' | 'vertical'
+  bubbleId?: string  // ID from bubble detection
+  bubbleScore?: number  // Quality score from bubble detection
 }
 
 export interface OCROptions {
   language?: string
   minConfidence?: number
+  bubbleDetection?: BubbleDetectionMode  // Enable OpenCV bubble detection
 }
 
 /**

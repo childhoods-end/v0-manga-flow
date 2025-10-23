@@ -25,7 +25,15 @@
       "Bash(psql:*)",
       "Bash(git restore:*)",
       "Bash(pnpm approve-builds:*)",
-      "Bash(test:*)"
+      "Bash(test:*)",
+      "Bash(python3:*)",
+      "Bash(npx tsx:*)",
+      "Bash(node:*)",
+      "Bash(set NEXT_PUBLIC_SUPABASE_URL=https://mqzvdzyozthcmlezjkyh.supabase.co)",
+      "Bash(set SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1xenZkenlvenRoY21sZXpqa3loIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1OTc5OTM3OCwiZXhwIjoyMDc1Mzc1Mzc4fQ.rgiB3uq412sD9YpFma0K1lISoxXAwDVUPNrLIm30UG8)",
+      "Bash(powershell:*)",
+      "Bash(timeout:*)",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "ask": []
