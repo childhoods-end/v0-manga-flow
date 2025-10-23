@@ -50,6 +50,8 @@ export function TextBlockEditor({
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [saving, setSaving] = useState(false)
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false)
+  const [isSelectionDragging, setIsSelectionDragging] = useState(false)
+  const [selectionRect, setSelectionRect] = useState<{x: number, y: number, width: number, height: number} | null>(null)
 
   // Sync textBlocks prop to local state
   useEffect(() => {
@@ -200,18 +202,62 @@ export function TextBlockEditor({
       ctx.lineWidth = isSelected || isMultiSelected ? 3 : 2
       ctx.strokeRect(scaledBbox.x, scaledBbox.y, scaledBbox.width, scaledBbox.height)
 
-      // Draw resize handle for selected block
+      // Draw resize handle for selected block (diagonal arrows)
       if (isSelected) {
-        const handleSize = 10
+        const handleSize = 16
+        const x = scaledBbox.x + scaledBbox.width - handleSize / 2
+        const y = scaledBbox.y + scaledBbox.height - handleSize / 2
+
+        // Draw diagonal resize icon (↖ ↘)
+        ctx.strokeStyle = '#3b82f6'
         ctx.fillStyle = '#3b82f6'
-        ctx.fillRect(
-          scaledBbox.x + scaledBbox.width - handleSize,
-          scaledBbox.y + scaledBbox.height - handleSize,
-          handleSize,
-          handleSize
-        )
+        ctx.lineWidth = 2
+
+        // Draw arrow lines
+        const arrowSize = handleSize * 0.6
+
+        // Top-left arrow (↖)
+        ctx.beginPath()
+        ctx.moveTo(x - arrowSize/2, y - arrowSize/2)
+        ctx.lineTo(x + arrowSize/2, y + arrowSize/2)
+        ctx.stroke()
+
+        // Arrow head for top-left
+        ctx.beginPath()
+        ctx.moveTo(x - arrowSize/2, y - arrowSize/2)
+        ctx.lineTo(x - arrowSize/2 + 3, y - arrowSize/2)
+        ctx.lineTo(x - arrowSize/2, y - arrowSize/2 + 3)
+        ctx.closePath()
+        ctx.fill()
+
+        // Arrow head for bottom-right
+        ctx.beginPath()
+        ctx.moveTo(x + arrowSize/2, y + arrowSize/2)
+        ctx.lineTo(x + arrowSize/2 - 3, y + arrowSize/2)
+        ctx.lineTo(x + arrowSize/2, y + arrowSize/2 - 3)
+        ctx.closePath()
+        ctx.fill()
       }
     })
+
+    // Draw selection rectangle if dragging
+    if (selectionRect) {
+      ctx.strokeStyle = '#3b82f6'
+      ctx.fillStyle = 'rgba(59, 130, 246, 0.1)'
+      ctx.lineWidth = 2
+      ctx.setLineDash([5, 5])
+
+      const scaledRect = {
+        x: selectionRect.x * currentScale,
+        y: selectionRect.y * currentScale,
+        width: selectionRect.width * currentScale,
+        height: selectionRect.height * currentScale
+      }
+
+      ctx.fillRect(scaledRect.x, scaledRect.y, scaledRect.width, scaledRect.height)
+      ctx.strokeRect(scaledRect.x, scaledRect.y, scaledRect.width, scaledRect.height)
+      ctx.setLineDash([])
+    }
   }
 
   function handleCanvasClick(e: React.MouseEvent<HTMLCanvasElement>) {
@@ -268,8 +314,6 @@ export function TextBlockEditor({
   }
 
   function handleCanvasMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
-    if (!selectedBlock) return
-
     const canvas = canvasRef.current
     if (!canvas) return
 
@@ -277,15 +321,37 @@ export function TextBlockEditor({
     const x = (e.clientX - rect.left) / scale
     const y = (e.clientY - rect.top) / scale
 
+    // In multi-select mode, start selection drag if clicking on empty area
+    if (isMultiSelectMode) {
+      // Check if clicking on any block
+      let clickedOnBlock = false
+      for (const block of localTextBlocks) {
+        const bbox = block.bbox
+        if (x >= bbox.x && x <= bbox.x + bbox.width && y >= bbox.y && y <= bbox.y + bbox.height) {
+          clickedOnBlock = true
+          break
+        }
+      }
+
+      if (!clickedOnBlock) {
+        setIsSelectionDragging(true)
+        setDragStart({ x, y })
+        setSelectionRect({ x, y, width: 0, height: 0 })
+        return
+      }
+    }
+
+    if (!selectedBlock) return
+
     const bbox = selectedBlock.bbox
 
-    // Check if clicking resize handle
-    const handleSize = 10 / scale
+    // Check if clicking resize handle (larger clickable area)
+    const handleSize = 16 / scale
     if (
       x >= bbox.x + bbox.width - handleSize &&
-      x <= bbox.x + bbox.width &&
+      x <= bbox.x + bbox.width + handleSize/2 &&
       y >= bbox.y + bbox.height - handleSize &&
-      y <= bbox.y + bbox.height
+      y <= bbox.y + bbox.height + handleSize/2
     ) {
       setIsResizing(true)
       setDragStart({ x: e.clientX, y: e.clientY })
@@ -305,6 +371,27 @@ export function TextBlockEditor({
   }
 
   function handleCanvasMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const rect = canvas.getBoundingClientRect()
+    const x = (e.clientX - rect.left) / scale
+    const y = (e.clientY - rect.top) / scale
+
+    // Handle selection rectangle dragging
+    if (isSelectionDragging && selectionRect) {
+      const width = x - dragStart.x
+      const height = y - dragStart.y
+
+      setSelectionRect({
+        x: width >= 0 ? dragStart.x : x,
+        y: height >= 0 ? dragStart.y : y,
+        width: Math.abs(width),
+        height: Math.abs(height)
+      })
+      return
+    }
+
     if (!selectedBlock) return
 
     if (isDragging) {
@@ -346,6 +433,32 @@ export function TextBlockEditor({
   }
 
   function handleCanvasMouseUp() {
+    // Handle selection rectangle completion
+    if (isSelectionDragging && selectionRect) {
+      // Find all blocks that intersect with selection rectangle
+      const selected = new Set<string>()
+
+      for (const block of localTextBlocks) {
+        const bbox = block.bbox
+        // Check if rectangles intersect
+        const intersects = !(
+          bbox.x + bbox.width < selectionRect.x ||
+          bbox.x > selectionRect.x + selectionRect.width ||
+          bbox.y + bbox.height < selectionRect.y ||
+          bbox.y > selectionRect.y + selectionRect.height
+        )
+
+        if (intersects) {
+          selected.add(block.id)
+        }
+      }
+
+      setSelectedBlocks(selected)
+      setIsSelectionDragging(false)
+      setSelectionRect(null)
+      return
+    }
+
     setIsDragging(false)
     setIsResizing(false)
   }
@@ -542,10 +655,11 @@ export function TextBlockEditor({
                   )}
                 </div>
                 <div className="text-sm text-slate-600 dark:text-slate-400">
-                  <p>💡 点击选择，拖动移动，拖右下角调整大小，Ctrl+点击多选</p>
+                  <p>💡 点击选择，拖动移动，拖右下角调整大小</p>
+                  <p>{isMultiSelectMode ? '🎯 多选模式：拖拽圈选或Ctrl+点击' : 'Ctrl+点击多选'}</p>
                   <p>已翻译: {localTextBlocks.filter(b => b.translated_text).length} / {localTextBlocks.length}</p>
                   {selectedBlocks.size > 0 && (
-                    <p className="text-green-600">已选择: {selectedBlocks.size} 个文本框</p>
+                    <p className="text-green-600">✓ 已选择: {selectedBlocks.size} 个文本框</p>
                   )}
                 </div>
               </div>

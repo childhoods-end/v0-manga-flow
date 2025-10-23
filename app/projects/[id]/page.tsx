@@ -754,8 +754,10 @@ export default function ProjectPage() {
               <li>✅ 项目创建成功</li>
               <li>✅ 已上传 {pages.length} 页</li>
               <li>
-                {project?.status === 'ready' || project?.status === 'processing'
+                {project?.status === 'ready'
                   ? '✅ 翻译完成'
+                  : project?.status === 'processing'
+                  ? '⏳ 翻译进行中...'
                   : project?.status === 'failed'
                   ? '❌ 翻译失败'
                   : '⏳ 准备翻译'}
