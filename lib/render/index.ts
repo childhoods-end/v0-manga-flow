@@ -14,7 +14,8 @@ export interface TextBlockWithTranslation extends Omit<TextBlock, 'bbox'> {
 }
 
 // Export smart rendering
-export { renderPageSmart, SmartRenderOptions } from './smartRender'
+export { renderPageSmart } from './smartRender'
+export type { SmartRenderOptions } from './smartRender'
 
 /**
  * Render translated text over the original manga page
