@@ -261,7 +261,8 @@ export function TextBlockEditor({
   }
 
   function handleCanvasClick(e: React.MouseEvent<HTMLCanvasElement>) {
-    if (isDragging || isResizing) return
+    // Skip if we were dragging/resizing or doing a drag selection
+    if (isDragging || isResizing || isSelectionDragging) return
 
     const canvas = canvasRef.current
     if (!canvas) return
@@ -321,28 +322,53 @@ export function TextBlockEditor({
     const x = (e.clientX - rect.left) / scale
     const y = (e.clientY - rect.top) / scale
 
-    // In multi-select mode, start selection drag if clicking on empty area
-    if (isMultiSelectMode) {
-      // Check if clicking on any block
-      let clickedOnBlock = false
-      for (const block of localTextBlocks) {
-        const bbox = block.bbox
-        if (x >= bbox.x && x <= bbox.x + bbox.width && y >= bbox.y && y <= bbox.y + bbox.height) {
-          clickedOnBlock = true
-          break
-        }
-      }
-
-      if (!clickedOnBlock) {
-        setIsSelectionDragging(true)
-        setDragStart({ x, y })
-        setSelectionRect({ x, y, width: 0, height: 0 })
-        return
+    // Check if clicking on any block
+    let clickedBlock: TextBlock | null = null
+    for (const block of localTextBlocks) {
+      const bbox = block.bbox
+      if (x >= bbox.x && x <= bbox.x + bbox.width && y >= bbox.y && y <= bbox.y + bbox.height) {
+        clickedBlock = block
+        break
       }
     }
 
-    if (!selectedBlock) return
+    // If clicking on empty area, start drag selection (works in both modes)
+    if (!clickedBlock) {
+      setIsSelectionDragging(true)
+      setDragStart({ x, y })
+      setSelectionRect({ x, y, width: 0, height: 0 })
+      setSelectedBlock(null) // Deselect current block when starting drag selection
+      return
+    }
 
+    // If clicked on a block in multi-select mode, toggle selection
+    if (isMultiSelectMode || e.ctrlKey || e.metaKey) {
+      setSelectedBlocks(prev => {
+        const newSet = new Set(prev)
+        if (newSet.has(clickedBlock.id)) {
+          newSet.delete(clickedBlock.id)
+        } else {
+          newSet.add(clickedBlock.id)
+        }
+        return newSet
+      })
+      setSelectedBlock(null)
+      return
+    }
+
+    // Regular single selection and dragging logic
+    if (!selectedBlock || selectedBlock.id !== clickedBlock.id) {
+      // Selecting a different block
+      if (!clickedBlock.font_size || clickedBlock.font_size === 0) {
+        const initialFontSize = calculateInitialFontSize(clickedBlock.translated_text || '', clickedBlock.bbox)
+        updateLocalBlock(clickedBlock.id, { font_size: initialFontSize })
+      }
+      setSelectedBlock(clickedBlock)
+      setSelectedBlocks(new Set())
+      return
+    }
+
+    // If already selected, handle dragging or resizing
     const bbox = selectedBlock.bbox
 
     // Check if clicking resize handle (larger clickable area)
@@ -656,10 +682,10 @@ export function TextBlockEditor({
                 </div>
                 <div className="text-sm text-slate-600 dark:text-slate-400">
                   <p>💡 点击选择，拖动移动，拖右下角调整大小</p>
-                  <p>{isMultiSelectMode ? '🎯 多选模式：拖拽圈选或Ctrl+点击' : 'Ctrl+点击多选'}</p>
+                  <p>🎯 拖拽空白处圈选多个文本框，或Ctrl+点击多选</p>
                   <p>已翻译: {localTextBlocks.filter(b => b.translated_text).length} / {localTextBlocks.length}</p>
                   {selectedBlocks.size > 0 && (
-                    <p className="text-green-600">✓ 已选择: {selectedBlocks.size} 个文本框</p>
+                    <p className="text-green-600 font-medium">✓ 已选择 {selectedBlocks.size} 个文本框 - 点击"合并"按钮</p>
                   )}
                 </div>
               </div>

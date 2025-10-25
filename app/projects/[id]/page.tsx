@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -27,13 +27,14 @@ export default function ProjectPage() {
   const [editingPage, setEditingPage] = useState<any>(null)
   const [editingTextBlocks, setEditingTextBlocks] = useState<any[]>([])
   const [loadingEditor, setLoadingEditor] = useState(false)
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     loadProject()
 
     // Set up real-time updates for pages
-    const channel = supabase
-      .channel(`project-${projectId}`)
+    const pagesChannel = supabase
+      .channel(`project-pages-${projectId}`)
       .on(
         'postgres_changes',
         {
@@ -50,8 +51,52 @@ export default function ProjectPage() {
       )
       .subscribe()
 
+    // Set up real-time updates for translation jobs to catch progress updates
+    const jobsChannel = supabase
+      .channel(`project-jobs-${projectId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'translation_jobs',
+          filter: `project_id=eq.${projectId}`,
+        },
+        (payload) => {
+          console.log('📡 Translation job updated:', payload)
+          // Reload project to get latest page data when job progresses
+          loadProject()
+        }
+      )
+      .subscribe()
+
+    // Set up real-time updates for project status changes
+    const projectChannel = supabase
+      .channel(`project-status-${projectId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'projects',
+          filter: `id=eq.${projectId}`,
+        },
+        (payload) => {
+          console.log('📡 Project status updated:', payload)
+          loadProject()
+        }
+      )
+      .subscribe()
+
     return () => {
-      supabase.removeChannel(channel)
+      supabase.removeChannel(pagesChannel)
+      supabase.removeChannel(jobsChannel)
+      supabase.removeChannel(projectChannel)
+      // Clean up polling interval if component unmounts
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+      }
     }
   }, [projectId])
 
@@ -138,7 +183,7 @@ export default function ProjectPage() {
       // Poll for status and trigger worker if still pending
       let pollCount = 0
       let lastProgress = 0
-      const pollInterval = setInterval(async () => {
+      pollIntervalRef.current = setInterval(async () => {
         try {
           pollCount++
           const statusResponse = await fetch(`/api/translation-job/status/${projectId}`)
@@ -155,14 +200,14 @@ export default function ProjectPage() {
             )
 
             // Reload pages data when progress changes to update thumbnails
+            // The real-time subscription will also trigger reload, but this ensures we have latest data
             if (progress > lastProgress && progress > 0) {
               console.log(`Progress updated: ${lastProgress}% -> ${progress}%`)
               lastProgress = progress
-              loadProject()
             }
 
             // If still pending after 10 seconds, manually trigger worker
-            if (statusData.status === 'pending' && pollCount > 5) {
+            if (statusData.status === 'pending' && pollCount > 3) {
               console.log('Job still pending, manually triggering worker...')
               fetch(`/api/translation-job/trigger/${jobId}`, {
                 method: 'POST'
@@ -170,7 +215,10 @@ export default function ProjectPage() {
             }
 
             if (statusData.status === 'completed') {
-              clearInterval(pollInterval)
+              if (pollIntervalRef.current) {
+                clearInterval(pollIntervalRef.current)
+                pollIntervalRef.current = null
+              }
               setTranslationProgress('Translation completed!')
 
               // Track translation completion
@@ -187,18 +235,24 @@ export default function ProjectPage() {
                 setTranslationProgress('')
               }, 2000)
             } else if (statusData.status === 'failed') {
-              clearInterval(pollInterval)
+              if (pollIntervalRef.current) {
+                clearInterval(pollIntervalRef.current)
+                pollIntervalRef.current = null
+              }
               throw new Error(statusData.errorMessage || 'Translation failed')
             }
           }
         } catch (pollError) {
           console.error('Poll error:', pollError)
         }
-      }, 1000) // Poll every 1 second for more responsive updates
+      }, 2000) // Poll every 2 seconds (real-time updates will handle immediate changes)
 
       // Timeout after 5 minutes
       setTimeout(() => {
-        clearInterval(pollInterval)
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current)
+          pollIntervalRef.current = null
+        }
         if (isTranslating) {
           setTranslationProgress('Translation is taking longer than expected. Please check back later.')
           setIsTranslating(false)
