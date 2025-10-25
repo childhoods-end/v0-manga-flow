@@ -765,10 +765,19 @@ export default function ProjectPage() {
                     <p className="text-xs text-muted-foreground">
                       {page.width} × {page.height}
                     </p>
-                    {page.processed_blob_url && (
-                      <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                        ✓ 已翻译
-                      </p>
+                    {page.processed_blob_url ? (
+                      <div className="mt-2 inline-flex items-center gap-1 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-md px-2 py-1">
+                        <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
+                        <span className="text-sm font-semibold text-green-700 dark:text-green-300">
+                          已翻译
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="mt-2 inline-flex items-center gap-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md px-2 py-1">
+                        <span className="text-sm text-slate-500 dark:text-slate-400">
+                          待翻译
+                        </span>
+                      </div>
                     )}
                   </div>
                 </CardContent>

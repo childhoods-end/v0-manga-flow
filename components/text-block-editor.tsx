@@ -105,7 +105,7 @@ export function TextBlockEditor({
       drawCanvas(img, scaleX)
     }
     img.src = imageUrl
-  }, [imageUrl, localTextBlocks, selectedBlock])
+  }, [imageUrl, localTextBlocks, selectedBlock, selectedBlocks, selectionRect])
 
   function drawCanvas(img: HTMLImageElement, currentScale: number) {
     const canvas = canvasRef.current
@@ -640,21 +640,10 @@ export function TextBlockEditor({
         <CardContent className="flex-1 overflow-hidden p-0">
           <div className="flex h-full">
             {/* Canvas area */}
-            <div ref={containerRef} className="flex-1 overflow-auto p-4 bg-slate-50 dark:bg-slate-900">
-              <div className="inline-block">
-                <canvas
-                  ref={canvasRef}
-                  onClick={handleCanvasClick}
-                  onMouseDown={handleCanvasMouseDown}
-                  onMouseMove={handleCanvasMouseMove}
-                  onMouseUp={handleCanvasMouseUp}
-                  onMouseLeave={handleCanvasMouseUp}
-                  className="border border-slate-300 dark:border-slate-700 cursor-crosshair"
-                  style={{ cursor: isDragging ? 'move' : isResizing ? 'nwse-resize' : 'crosshair' }}
-                />
-              </div>
-              <div className="mt-4 space-y-2">
-                <div className="flex gap-2">
+            <div ref={containerRef} className="flex-1 overflow-auto p-4 bg-slate-50 dark:bg-slate-900 flex flex-col">
+              {/* Toolbar at top */}
+              <div className="mb-4 space-y-2 bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+                <div className="flex gap-2 flex-wrap">
                   <Button
                     variant={isMultiSelectMode ? "default" : "outline"}
                     size="sm"
@@ -675,18 +664,46 @@ export function TextBlockEditor({
                       size="sm"
                       onClick={handleMergeBlocks}
                       disabled={saving}
+                      className="bg-green-600 hover:bg-green-700"
                     >
-                      合并 {selectedBlocks.size} 个文本框
+                      🔗 合并 {selectedBlocks.size} 个文本框
+                    </Button>
+                  )}
+                  {selectedBlocks.size > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedBlocks(new Set())}
+                    >
+                      清除选择
                     </Button>
                   )}
                 </div>
                 <div className="text-sm text-slate-600 dark:text-slate-400">
                   <p>💡 点击选择，拖动移动，拖右下角调整大小</p>
-                  <p>🎯 拖拽空白处圈选多个文本框，或Ctrl+点击多选</p>
+                  <p>🎯 <strong>拖拽空白处圈选多个文本框</strong>，或Ctrl+点击多选</p>
                   <p>已翻译: {localTextBlocks.filter(b => b.translated_text).length} / {localTextBlocks.length}</p>
                   {selectedBlocks.size > 0 && (
-                    <p className="text-green-600 font-medium">✓ 已选择 {selectedBlocks.size} 个文本框 - 点击"合并"按钮</p>
+                    <p className="text-green-600 font-bold text-base mt-1">
+                      ✓ 已选择 {selectedBlocks.size} 个文本框 - 点击上方"合并"按钮
+                    </p>
                   )}
+                </div>
+              </div>
+
+              {/* Canvas */}
+              <div className="flex-1 overflow-auto">
+                <div className="inline-block">
+                  <canvas
+                    ref={canvasRef}
+                    onClick={handleCanvasClick}
+                    onMouseDown={handleCanvasMouseDown}
+                    onMouseMove={handleCanvasMouseMove}
+                    onMouseUp={handleCanvasMouseUp}
+                    onMouseLeave={handleCanvasMouseUp}
+                    className="border border-slate-300 dark:border-slate-700 cursor-crosshair"
+                    style={{ cursor: isDragging ? 'move' : isResizing ? 'nwse-resize' : isSelectionDragging ? 'crosshair' : 'default' }}
+                  />
                 </div>
               </div>
             </div>
