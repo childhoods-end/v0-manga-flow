@@ -717,6 +717,7 @@ export function TextBlockEditor({
               <div className="mt-4 text-sm text-slate-600 dark:text-slate-400 space-y-1">
                 <p>💡 点击选择，拖动移动，拖右下角调整大小</p>
                 <p>🎯 <strong>拖拽空白处圈选多个文本框</strong>，或Ctrl+点击多选</p>
+                <p>⌨️ <strong>按住空格键可拖动移动图片</strong></p>
                 {selectedBlocks.size > 0 && (
                   <p className="text-green-600 font-bold text-base mt-1">
                     ✓ 已选择 {selectedBlocks.size} 个文本框
