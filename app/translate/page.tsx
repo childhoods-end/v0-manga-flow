@@ -25,6 +25,7 @@ export default function TranslatePage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [credits, setCredits] = useState<any>(null)
   const [showCreditModal, setShowCreditModal] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null)
 
   useEffect(() => {
     // Get current user and credits
@@ -130,42 +131,56 @@ export default function TranslatePage() {
       const { projectId } = await createProjectResponse.json()
       console.log('Project created:', projectId)
 
-      // Step 2: Upload files directly to Supabase Storage
+      // Step 2: Upload files directly to Supabase Storage in batches
       const uploadedPages = []
+      const BATCH_SIZE = 3 // Upload 3 files at a time
 
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i]
-        console.log(`Uploading file ${i + 1}/${files.length}:`, file.name)
+      for (let i = 0; i < files.length; i += BATCH_SIZE) {
+        const batch = files.slice(i, Math.min(i + BATCH_SIZE, files.length))
 
-        // Get file extension
-        const ext = file.name.split('.').pop()?.toLowerCase() || 'png'
-        const fileName = `${projectId}/page-${i}.${ext}`
+        // Upload batch in parallel
+        const batchPromises = batch.map(async (file, batchIndex) => {
+          const fileIndex = i + batchIndex
+          console.log(`Uploading file ${fileIndex + 1}/${files.length}:`, file.name)
 
-        // Upload to Supabase Storage
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('manga-pages')
-          .upload(fileName, file, {
-            contentType: file.type,
-            upsert: true,
-          })
+          // Update progress
+          setUploadProgress({ current: fileIndex + 1, total: files.length })
 
-        if (uploadError) {
-          console.error('Upload error:', uploadError)
-          throw new Error(`上传文件 ${file.name} 失败: ${uploadError.message}`)
-        }
+          // Get file extension
+          const ext = file.name.split('.').pop()?.toLowerCase() || 'png'
+          const fileName = `${projectId}/page-${fileIndex}.${ext}`
 
-        // Get public URL
-        const { data: urlData } = supabase.storage
-          .from('manga-pages')
-          .getPublicUrl(fileName)
+          // Upload to Supabase Storage
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('manga-pages')
+            .upload(fileName, file, {
+              contentType: file.type,
+              upsert: true,
+            })
 
-        uploadedPages.push({
-          pageIndex: i,
-          imageUrl: urlData.publicUrl,
-          fileName: file.name,
+          if (uploadError) {
+            console.error('Upload error:', uploadError)
+            throw new Error(`上传文件 ${file.name} 失败: ${uploadError.message}`)
+          }
+
+          // Get public URL
+          const { data: urlData } = supabase.storage
+            .from('manga-pages')
+            .getPublicUrl(fileName)
+
+          return {
+            pageIndex: fileIndex,
+            imageUrl: urlData.publicUrl,
+            fileName: file.name,
+          }
         })
+
+        // Wait for batch to complete
+        const batchResults = await Promise.all(batchPromises)
+        uploadedPages.push(...batchResults)
       }
 
+      setUploadProgress(null)
       console.log('All files uploaded, creating page records...')
 
       // Step 3: Create page records
@@ -428,7 +443,9 @@ export default function TranslatePage() {
               {isUploading ? (
                 <>
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  上传中...
+                  {uploadProgress
+                    ? `上传中... (${uploadProgress.current}/${uploadProgress.total})`
+                    : '上传中...'}
                 </>
               ) : (
                 '开始翻译'

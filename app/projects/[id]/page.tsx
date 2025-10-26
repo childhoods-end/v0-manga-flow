@@ -28,6 +28,7 @@ export default function ProjectPage() {
   const [editingTextBlocks, setEditingTextBlocks] = useState<any[]>([])
   const [loadingEditor, setLoadingEditor] = useState(false)
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const statusPollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     loadProject()
@@ -49,7 +50,9 @@ export default function ProjectPage() {
           loadProject()
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        console.log('📡 Pages channel status:', status)
+      })
 
     // Set up real-time updates for translation jobs to catch progress updates
     const jobsChannel = supabase
@@ -68,7 +71,9 @@ export default function ProjectPage() {
           loadProject()
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        console.log('📡 Jobs channel status:', status)
+      })
 
     // Set up real-time updates for project status changes
     const projectChannel = supabase
@@ -86,19 +91,44 @@ export default function ProjectPage() {
           loadProject()
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        console.log('📡 Project channel status:', status)
+      })
+
+    // Set up fallback polling for status updates (every 5 seconds)
+    // This ensures status updates even if real-time fails
+    statusPollIntervalRef.current = setInterval(async () => {
+      try {
+        const { data: projectData } = await supabase
+          .from('projects')
+          .select('status')
+          .eq('id', projectId)
+          .single()
+
+        if (projectData && project && projectData.status !== project.status) {
+          console.log('🔄 Status changed via polling:', project.status, '→', projectData.status)
+          loadProject()
+        }
+      } catch (error) {
+        console.error('Polling error:', error)
+      }
+    }, 5000)
 
     return () => {
       supabase.removeChannel(pagesChannel)
       supabase.removeChannel(jobsChannel)
       supabase.removeChannel(projectChannel)
-      // Clean up polling interval if component unmounts
+      // Clean up polling intervals if component unmounts
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current)
         pollIntervalRef.current = null
       }
+      if (statusPollIntervalRef.current) {
+        clearInterval(statusPollIntervalRef.current)
+        statusPollIntervalRef.current = null
+      }
     }
-  }, [projectId])
+  }, [projectId, project?.status])
 
   async function loadProject() {
     try {
