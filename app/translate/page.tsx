@@ -109,39 +109,79 @@ export default function TranslatePage() {
     setIsUploading(true)
 
     try {
-      const formData = new FormData()
-      formData.append('title', title)
-      formData.append('sourceLang', sourceLang)
-      formData.append('targetLang', targetLang)
-      formData.append('contentRating', contentRating)
-      formData.append('rightsDeclaration', rightsDeclaration.toString())
-
-      files.forEach((file) => {
-        formData.append('files', file)
-      })
-
-      const response = await fetch('/api/upload-simple', {
+      // Step 1: Create project first
+      const createProjectResponse = await fetch('/api/projects/create', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          sourceLang,
+          targetLang,
+          contentRating,
+          totalPages: files.length,
+        }),
       })
 
-      if (!response.ok) {
-        let errorMessage = '上传失败'
-        try {
-          const error = await response.json()
-          errorMessage = error.error || errorMessage
-        } catch (e) {
-          errorMessage = `上传失败，状态码: ${response.status}`
+      if (!createProjectResponse.ok) {
+        const error = await createProjectResponse.json()
+        throw new Error(error.error || '创建项目失败')
+      }
+
+      const { projectId } = await createProjectResponse.json()
+      console.log('Project created:', projectId)
+
+      // Step 2: Upload files directly to Supabase Storage
+      const uploadedPages = []
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        console.log(`Uploading file ${i + 1}/${files.length}:`, file.name)
+
+        // Get file extension
+        const ext = file.name.split('.').pop()?.toLowerCase() || 'png'
+        const fileName = `${projectId}/page-${i}.${ext}`
+
+        // Upload to Supabase Storage
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('manga-pages')
+          .upload(fileName, file, {
+            contentType: file.type,
+            upsert: true,
+          })
+
+        if (uploadError) {
+          console.error('Upload error:', uploadError)
+          throw new Error(`上传文件 ${file.name} 失败: ${uploadError.message}`)
         }
-        throw new Error(errorMessage)
+
+        // Get public URL
+        const { data: urlData } = supabase.storage
+          .from('manga-pages')
+          .getPublicUrl(fileName)
+
+        uploadedPages.push({
+          pageIndex: i,
+          imageUrl: urlData.publicUrl,
+          fileName: file.name,
+        })
       }
 
-      const responseText = await response.text()
-      if (!responseText) {
-        throw new Error('服务器响应为空')
-      }
+      console.log('All files uploaded, creating page records...')
 
-      const result = JSON.parse(responseText)
+      // Step 3: Create page records
+      const createPagesResponse = await fetch('/api/projects/create-pages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId,
+          pages: uploadedPages,
+        }),
+      })
+
+      if (!createPagesResponse.ok) {
+        const error = await createPagesResponse.json()
+        throw new Error(error.error || '创建页面记录失败')
+      }
 
       // Deduct credits
       try {
@@ -163,19 +203,14 @@ export default function TranslatePage() {
       const user = await supabase.auth.getUser()
       track('translation_uploaded', {
         user_id: user.data.user?.id,
-        project_id: result.projectId,
+        project_id: projectId,
         image_count: files.length,
         source_lang: sourceLang,
         target_lang: targetLang,
       })
 
       // Navigate to project page
-      if (result.projectId) {
-        router.push(`/projects/${result.projectId}`)
-      } else {
-        alert('上传成功！翻译处理已开始。')
-        router.push('/dashboard')
-      }
+      router.push(`/projects/${projectId}`)
     } catch (error) {
       console.error('Upload failed:', error)
       const errorMsg = error instanceof Error ? error.message : '上传失败，请重试。'
