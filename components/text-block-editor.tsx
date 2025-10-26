@@ -52,7 +52,7 @@ export function TextBlockEditor({
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false)
   const [isSelectionDragging, setIsSelectionDragging] = useState(false)
   const [selectionRect, setSelectionRect] = useState<{x: number, y: number, width: number, height: number} | null>(null)
-  const [isPanningMode, setIsPanningMode] = useState(false)
+  const [isSpacePressed, setIsSpacePressed] = useState(false)
   const [isPanning, setIsPanning] = useState(false)
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 })
   const [panStart, setPanStart] = useState({ x: 0, y: 0 })
@@ -61,6 +61,32 @@ export function TextBlockEditor({
   useEffect(() => {
     setLocalTextBlocks(textBlocks)
   }, [textBlocks])
+
+  // Handle spacebar for panning mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !e.repeat) {
+        e.preventDefault()
+        setIsSpacePressed(true)
+      }
+    }
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        e.preventDefault()
+        setIsSpacePressed(false)
+        setIsPanning(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+    }
+  }, [])
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -330,8 +356,8 @@ export function TextBlockEditor({
     const x = (e.clientX - rect.left) / scale - panOffset.x
     const y = (e.clientY - rect.top) / scale - panOffset.y
 
-    // If in panning mode, start panning
-    if (isPanningMode) {
+    // If spacebar is pressed, start panning
+    if (isSpacePressed) {
       setIsPanning(true)
       setPanStart({ x: e.clientX, y: e.clientY })
       return
@@ -682,7 +708,7 @@ export function TextBlockEditor({
                     onMouseUp={handleCanvasMouseUp}
                     onMouseLeave={handleCanvasMouseUp}
                     className="border border-slate-300 dark:border-slate-700 cursor-crosshair"
-                    style={{ cursor: isPanning ? 'grabbing' : isPanningMode ? 'grab' : isDragging ? 'move' : isResizing ? 'nwse-resize' : isSelectionDragging ? 'crosshair' : 'default' }}
+                    style={{ cursor: isPanning ? 'grabbing' : isSpacePressed ? 'grab' : isDragging ? 'move' : isResizing ? 'nwse-resize' : isSelectionDragging ? 'crosshair' : 'default' }}
                   />
                 </div>
               </div>
@@ -703,34 +729,9 @@ export function TextBlockEditor({
             <div className="w-80 border-l p-4 overflow-auto">
               {/* Multi-select toolbar - always visible at top */}
               <div className="mb-4 pb-4 border-b space-y-2">
-                <Button
-                  variant={isPanningMode ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => {
-                    setIsPanningMode(!isPanningMode)
-                    if (isPanningMode) {
-                      // Exiting panning mode
-                    } else {
-                      // Entering panning mode - deselect everything
-                      setIsMultiSelectMode(false)
-                      setSelectedBlock(null)
-                      setSelectedBlocks(new Set())
-                    }
-                  }}
-                  className="w-full"
-                >
-                  {isPanningMode ? '✓ ' : ''}移动图片模式
-                </Button>
-                {isPanningMode && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPanOffset({ x: 0, y: 0 })}
-                    className="w-full"
-                  >
-                    重置位置
-                  </Button>
-                )}
+                <div className="text-xs text-slate-500 mb-2 p-2 bg-slate-50 dark:bg-slate-900 rounded">
+                  💡 提示：按住空格键可拖动图片
+                </div>
                 <Button
                   variant="default"
                   size="sm"
@@ -738,7 +739,6 @@ export function TextBlockEditor({
                     setIsMultiSelectMode(!isMultiSelectMode)
                     if (!isMultiSelectMode) {
                       setSelectedBlock(null)
-                      setIsPanningMode(false)
                     } else {
                       setSelectedBlocks(new Set())
                     }
