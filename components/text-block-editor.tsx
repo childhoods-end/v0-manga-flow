@@ -641,56 +641,6 @@ export function TextBlockEditor({
           <div className="flex h-full">
             {/* Canvas area */}
             <div ref={containerRef} className="flex-1 overflow-auto p-4 bg-slate-50 dark:bg-slate-900 flex flex-col">
-              {/* Toolbar at top */}
-              <div className="mb-4 space-y-2 bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
-                <div className="flex gap-2 flex-wrap">
-                  <Button
-                    variant={isMultiSelectMode ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => {
-                      setIsMultiSelectMode(!isMultiSelectMode)
-                      if (!isMultiSelectMode) {
-                        setSelectedBlock(null)
-                      } else {
-                        setSelectedBlocks(new Set())
-                      }
-                    }}
-                  >
-                    {isMultiSelectMode ? '✓ 多选模式' : '多选模式'}
-                  </Button>
-                  {selectedBlocks.size >= 2 && (
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={handleMergeBlocks}
-                      disabled={saving}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      🔗 合并 {selectedBlocks.size} 个文本框
-                    </Button>
-                  )}
-                  {selectedBlocks.size > 0 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedBlocks(new Set())}
-                    >
-                      清除选择
-                    </Button>
-                  )}
-                </div>
-                <div className="text-sm text-slate-600 dark:text-slate-400">
-                  <p>💡 点击选择，拖动移动，拖右下角调整大小</p>
-                  <p>🎯 <strong>拖拽空白处圈选多个文本框</strong>，或Ctrl+点击多选</p>
-                  <p>已翻译: {localTextBlocks.filter(b => b.translated_text).length} / {localTextBlocks.length}</p>
-                  {selectedBlocks.size > 0 && (
-                    <p className="text-green-600 font-bold text-base mt-1">
-                      ✓ 已选择 {selectedBlocks.size} 个文本框 - 点击上方"合并"按钮
-                    </p>
-                  )}
-                </div>
-              </div>
-
               {/* Canvas */}
               <div className="flex-1 overflow-auto">
                 <div className="inline-block">
@@ -706,10 +656,61 @@ export function TextBlockEditor({
                   />
                 </div>
               </div>
+
+              {/* Instructions */}
+              <div className="mt-4 text-sm text-slate-600 dark:text-slate-400 space-y-1">
+                <p>💡 点击选择，拖动移动，拖右下角调整大小</p>
+                <p>🎯 <strong>拖拽空白处圈选多个文本框</strong>，或Ctrl+点击多选</p>
+                {selectedBlocks.size > 0 && (
+                  <p className="text-green-600 font-bold text-base mt-1">
+                    ✓ 已选择 {selectedBlocks.size} 个文本框
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Editor panel */}
             <div className="w-80 border-l p-4 overflow-auto">
+              {/* Multi-select toolbar - always visible at top */}
+              <div className="mb-4 pb-4 border-b space-y-2">
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => {
+                    setIsMultiSelectMode(!isMultiSelectMode)
+                    if (!isMultiSelectMode) {
+                      setSelectedBlock(null)
+                    } else {
+                      setSelectedBlocks(new Set())
+                    }
+                  }}
+                  className="w-full"
+                >
+                  合并文本框
+                </Button>
+                {selectedBlocks.size >= 2 && (
+                  <>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={handleMergeBlocks}
+                      disabled={saving}
+                      className="w-full bg-green-600 hover:bg-green-700"
+                    >
+                      🔗 确认合并 {selectedBlocks.size} 个文本框
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedBlocks(new Set())}
+                      className="w-full"
+                    >
+                      清除选择
+                    </Button>
+                  </>
+                )}
+              </div>
+
               {selectedBlock ? (
                 <div className="space-y-4">
                   <div>
