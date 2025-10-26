@@ -295,15 +295,15 @@ export function TextBlockEditor({
   }
 
   function handleCanvasClick(e: React.MouseEvent<HTMLCanvasElement>) {
-    // Skip if we were dragging/resizing or doing a drag selection
-    if (isDragging || isResizing || isSelectionDragging) return
+    // Skip if we were dragging/resizing or doing a drag selection or panning
+    if (isDragging || isResizing || isSelectionDragging || isPanning) return
 
     const canvas = canvasRef.current
     if (!canvas) return
 
     const rect = canvas.getBoundingClientRect()
-    const x = (e.clientX - rect.left) / scale
-    const y = (e.clientY - rect.top) / scale
+    const x = (e.clientX - rect.left) / scale - panOffset.x
+    const y = (e.clientY - rect.top) / scale - panOffset.y
 
     // Find clicked text block
     for (const block of localTextBlocks) {

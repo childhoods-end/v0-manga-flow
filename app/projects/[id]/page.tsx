@@ -260,6 +260,7 @@ export default function ProjectPage() {
             if (progress > lastProgress && progress > 0) {
               console.log(`Progress updated: ${lastProgress}% -> ${progress}%`)
               lastProgress = progress
+              loadProject() // Reload to get latest page data with processed_blob_url
             }
 
             // If still pending after 10 seconds, manually trigger worker
