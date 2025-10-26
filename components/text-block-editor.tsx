@@ -52,6 +52,10 @@ export function TextBlockEditor({
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false)
   const [isSelectionDragging, setIsSelectionDragging] = useState(false)
   const [selectionRect, setSelectionRect] = useState<{x: number, y: number, width: number, height: number} | null>(null)
+  const [isPanningMode, setIsPanningMode] = useState(false)
+  const [isPanning, setIsPanning] = useState(false)
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 })
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 })
 
   // Sync textBlocks prop to local state
   useEffect(() => {
@@ -105,7 +109,7 @@ export function TextBlockEditor({
       drawCanvas(img, scaleX)
     }
     img.src = imageUrl
-  }, [imageUrl, localTextBlocks, selectedBlock, selectedBlocks, selectionRect])
+  }, [imageUrl, localTextBlocks, selectedBlock, selectedBlocks, selectionRect, panOffset])
 
   function drawCanvas(img: HTMLImageElement, currentScale: number) {
     const canvas = canvasRef.current
@@ -113,8 +117,10 @@ export function TextBlockEditor({
 
     const ctx = canvas.getContext('2d')!
 
-    // Clear and draw image
+    // Clear and draw image with pan offset
     ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.save()
+    ctx.translate(panOffset.x * currentScale, panOffset.y * currentScale)
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
 
     // Draw all text blocks
@@ -258,6 +264,8 @@ export function TextBlockEditor({
       ctx.strokeRect(scaledRect.x, scaledRect.y, scaledRect.width, scaledRect.height)
       ctx.setLineDash([])
     }
+
+    ctx.restore()
   }
 
   function handleCanvasClick(e: React.MouseEvent<HTMLCanvasElement>) {
@@ -319,8 +327,15 @@ export function TextBlockEditor({
     if (!canvas) return
 
     const rect = canvas.getBoundingClientRect()
-    const x = (e.clientX - rect.left) / scale
-    const y = (e.clientY - rect.top) / scale
+    const x = (e.clientX - rect.left) / scale - panOffset.x
+    const y = (e.clientY - rect.top) / scale - panOffset.y
+
+    // If in panning mode, start panning
+    if (isPanningMode) {
+      setIsPanning(true)
+      setPanStart({ x: e.clientX, y: e.clientY })
+      return
+    }
 
     // Check if clicking on any block
     let clickedBlock: TextBlock | null = null
@@ -401,8 +416,17 @@ export function TextBlockEditor({
     if (!canvas) return
 
     const rect = canvas.getBoundingClientRect()
-    const x = (e.clientX - rect.left) / scale
-    const y = (e.clientY - rect.top) / scale
+    const x = (e.clientX - rect.left) / scale - panOffset.x
+    const y = (e.clientY - rect.top) / scale - panOffset.y
+
+    // Handle panning
+    if (isPanning) {
+      const dx = (e.clientX - panStart.x) / scale
+      const dy = (e.clientY - panStart.y) / scale
+      setPanOffset(prev => ({ x: prev.x + dx, y: prev.y + dy }))
+      setPanStart({ x: e.clientX, y: e.clientY })
+      return
+    }
 
     // Handle selection rectangle dragging
     if (isSelectionDragging && selectionRect) {
@@ -459,6 +483,12 @@ export function TextBlockEditor({
   }
 
   function handleCanvasMouseUp() {
+    // Stop panning
+    if (isPanning) {
+      setIsPanning(false)
+      return
+    }
+
     // Handle selection rectangle completion
     if (isSelectionDragging && selectionRect) {
       // Find all blocks that intersect with selection rectangle
@@ -652,7 +682,7 @@ export function TextBlockEditor({
                     onMouseUp={handleCanvasMouseUp}
                     onMouseLeave={handleCanvasMouseUp}
                     className="border border-slate-300 dark:border-slate-700 cursor-crosshair"
-                    style={{ cursor: isDragging ? 'move' : isResizing ? 'nwse-resize' : isSelectionDragging ? 'crosshair' : 'default' }}
+                    style={{ cursor: isPanning ? 'grabbing' : isPanningMode ? 'grab' : isDragging ? 'move' : isResizing ? 'nwse-resize' : isSelectionDragging ? 'crosshair' : 'default' }}
                   />
                 </div>
               </div>
@@ -674,12 +704,41 @@ export function TextBlockEditor({
               {/* Multi-select toolbar - always visible at top */}
               <div className="mb-4 pb-4 border-b space-y-2">
                 <Button
+                  variant={isPanningMode ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    setIsPanningMode(!isPanningMode)
+                    if (isPanningMode) {
+                      // Exiting panning mode
+                    } else {
+                      // Entering panning mode - deselect everything
+                      setIsMultiSelectMode(false)
+                      setSelectedBlock(null)
+                      setSelectedBlocks(new Set())
+                    }
+                  }}
+                  className="w-full"
+                >
+                  {isPanningMode ? '✓ ' : ''}移动图片模式
+                </Button>
+                {isPanningMode && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPanOffset({ x: 0, y: 0 })}
+                    className="w-full"
+                  >
+                    重置位置
+                  </Button>
+                )}
+                <Button
                   variant="default"
                   size="sm"
                   onClick={() => {
                     setIsMultiSelectMode(!isMultiSelectMode)
                     if (!isMultiSelectMode) {
                       setSelectedBlock(null)
+                      setIsPanningMode(false)
                     } else {
                       setSelectedBlocks(new Set())
                     }

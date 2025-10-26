@@ -95,24 +95,50 @@ export default function ProjectPage() {
         console.log('📡 Project channel status:', status)
       })
 
-    // Set up fallback polling for status updates (every 5 seconds)
+    // Set up fallback polling for status and page updates (every 3 seconds)
     // This ensures status updates even if real-time fails
     statusPollIntervalRef.current = setInterval(async () => {
       try {
+        // Check project status
         const { data: projectData } = await supabase
           .from('projects')
           .select('status')
           .eq('id', projectId)
           .single()
 
+        // Check pages for processed_blob_url updates
+        const { data: pagesData } = await supabase
+          .from('pages')
+          .select('id, processed_blob_url')
+          .eq('project_id', projectId)
+
+        let needsReload = false
+
+        // Check if project status changed
         if (projectData && project && projectData.status !== project.status) {
           console.log('🔄 Status changed via polling:', project.status, '→', projectData.status)
+          needsReload = true
+        }
+
+        // Check if any page got a new processed_blob_url
+        if (pagesData && pages.length > 0) {
+          for (const polledPage of pagesData) {
+            const currentPage = pages.find(p => p.id === polledPage.id)
+            if (currentPage && !currentPage.processed_blob_url && polledPage.processed_blob_url) {
+              console.log('🔄 Page rendered via polling:', polledPage.id)
+              needsReload = true
+              break
+            }
+          }
+        }
+
+        if (needsReload) {
           loadProject()
         }
       } catch (error) {
         console.error('Polling error:', error)
       }
-    }, 5000)
+    }, 3000)
 
     return () => {
       supabase.removeChannel(pagesChannel)
@@ -128,7 +154,7 @@ export default function ProjectPage() {
         statusPollIntervalRef.current = null
       }
     }
-  }, [projectId, project?.status])
+  }, [projectId])
 
   async function loadProject() {
     try {
