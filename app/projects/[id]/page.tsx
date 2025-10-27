@@ -517,44 +517,30 @@ export default function ProjectPage() {
       setTranslationProgress('')
     }
 
-    // Render horizontal text with aggressive fitting
+    // Render horizontal text with exact font size from editor
     function renderHorizontalText(
       ctx: CanvasRenderingContext2D,
       text: string,
       bbox: { x: number; y: number; width: number; height: number },
-      originalFontSize: number
+      fontSize: number
     ) {
       const fontFamily = '"Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "SimHei", "Arial", sans-serif'
-      const minFontSize = 6
-      const maxWidth = bbox.width * 0.8 // 20% margin
-      const maxHeight = bbox.height * 0.85 // 15% margin top+bottom
 
-      let fontSize = originalFontSize || Math.round(bbox.height * 0.65)
-      let lines: string[] = []
-      let lineHeight = 0
+      // Use the exact font size from the editor
+      ctx.font = `${fontSize}px ${fontFamily}`
+      const lineHeight = fontSize * 1.2
 
-      // Aggressively reduce font size until text fits
-      while (fontSize >= minFontSize) {
-        ctx.font = `500 ${fontSize}px ${fontFamily}`
-        lineHeight = fontSize * 1.1 // Tight line height
-
-        lines = wrapByMeasure(ctx, text, maxWidth)
-        const totalHeight = lines.length * lineHeight
-
-        if (totalHeight <= maxHeight) {
-          break // Found a fitting size
-        }
-
-        fontSize -= 1 // Reduce 1px at a time
-      }
+      // Wrap text by measuring pixel width
+      const maxWidth = bbox.width * 0.95
+      const lines = wrapByMeasure(ctx, text, maxWidth)
 
       // Draw text centered
       ctx.fillStyle = '#000000'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.font = `500 ${fontSize}px ${fontFamily}`
 
-      const startY = bbox.y + (bbox.height - lines.length * lineHeight) / 2 + lineHeight / 2
+      const totalHeight = lines.length * lineHeight
+      const startY = bbox.y + (bbox.height - totalHeight) / 2 + lineHeight / 2
 
       lines.forEach((line, idx) => {
         const y = startY + idx * lineHeight
@@ -562,43 +548,25 @@ export default function ProjectPage() {
       })
     }
 
-    // Render vertical text (top-to-bottom)
+    // Render vertical text with exact font size from editor
     function renderVerticalText(
       ctx: CanvasRenderingContext2D,
       text: string,
       bbox: { x: number; y: number; width: number; height: number },
-      originalFontSize: number
+      fontSize: number
     ) {
       const fontFamily = '"Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "SimHei", "Arial", sans-serif'
-      const minFontSize = 6
-      const maxHeight = bbox.height * 0.85 // 15% margin
-      const maxWidth = bbox.width * 0.8 // 20% margin
 
-      const chars = text.split('')
-      let fontSize = originalFontSize || Math.round(bbox.width * 0.8)
-
-      // Find largest font size that fits
-      while (fontSize >= minFontSize) {
-        ctx.font = `500 ${fontSize}px ${fontFamily}`
-
-        const charHeight = fontSize * 1.05 // Tight spacing
-        const totalHeight = chars.length * charHeight
-
-        // Also check that font size doesn't exceed width
-        if (totalHeight <= maxHeight && fontSize <= maxWidth) {
-          break
-        }
-
-        fontSize -= 1
-      }
+      // Use the exact font size from the editor
+      ctx.font = `${fontSize}px ${fontFamily}`
 
       // Draw text vertically centered
       ctx.fillStyle = '#000000'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.font = `500 ${fontSize}px ${fontFamily}`
 
-      const charHeight = fontSize * 1.05
+      const chars = text.split('')
+      const charHeight = fontSize * 1.1
       const totalHeight = chars.length * charHeight
       const startY = bbox.y + (bbox.height - totalHeight) / 2 + charHeight / 2
       const centerX = bbox.x + bbox.width / 2
