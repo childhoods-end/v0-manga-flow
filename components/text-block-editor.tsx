@@ -586,10 +586,6 @@ export function TextBlockEditor({
   async function handleDelete() {
     if (!selectedBlock) return
 
-    if (!confirm('确定要完全删除此文本块吗？删除后该区域将只显示原图，且无法编辑。')) {
-      return
-    }
-
     setSaving(true)
     try {
       // Completely delete the text block
@@ -603,6 +599,32 @@ export function TextBlockEditor({
     } catch (error) {
       console.error('Failed to delete:', error)
       alert('删除失败，请重试')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleBatchDelete() {
+    if (selectedBlocks.size === 0) {
+      alert('请选择要删除的文本框')
+      return
+    }
+
+    setSaving(true)
+    try {
+      // Delete all selected blocks
+      const deletePromises = Array.from(selectedBlocks).map(blockId => onDelete(blockId))
+      await Promise.all(deletePromises)
+
+      // Remove from local text blocks array
+      setLocalTextBlocks(prev => prev.filter(b => !selectedBlocks.has(b.id)))
+
+      // Clear selection
+      setSelectedBlocks(new Set())
+      setIsMultiSelectMode(false)
+    } catch (error) {
+      console.error('Failed to batch delete:', error)
+      alert('批量删除失败，请重试')
     } finally {
       setSaving(false)
     }
@@ -734,7 +756,7 @@ export function TextBlockEditor({
                   💡 提示：按住空格键可拖动图片
                 </div>
                 <Button
-                  variant="default"
+                  variant={isMultiSelectMode ? "default" : "outline"}
                   size="sm"
                   onClick={() => {
                     setIsMultiSelectMode(!isMultiSelectMode)
@@ -746,18 +768,33 @@ export function TextBlockEditor({
                   }}
                   className="w-full"
                 >
-                  合并文本框
+                  {isMultiSelectMode ? '✓ ' : ''}批量操作
                 </Button>
-                {selectedBlocks.size >= 2 && (
+                {isMultiSelectMode && selectedBlocks.size > 0 && (
                   <>
+                    <div className="text-sm text-center text-slate-600 dark:text-slate-400 py-1">
+                      已选择 {selectedBlocks.size} 个文本框
+                    </div>
+                    {selectedBlocks.size >= 2 && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={handleMergeBlocks}
+                        disabled={saving}
+                        className="w-full bg-green-600 hover:bg-green-700"
+                      >
+                        🔗 合并 {selectedBlocks.size} 个文本框
+                      </Button>
+                    )}
                     <Button
-                      variant="default"
+                      variant="destructive"
                       size="sm"
-                      onClick={handleMergeBlocks}
+                      onClick={handleBatchDelete}
                       disabled={saving}
-                      className="w-full bg-green-600 hover:bg-green-700"
+                      className="w-full"
                     >
-                      🔗 确认合并 {selectedBlocks.size} 个文本框
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      删除 {selectedBlocks.size} 个文本框
                     </Button>
                     <Button
                       variant="outline"
