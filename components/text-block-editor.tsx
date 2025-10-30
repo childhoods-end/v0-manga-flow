@@ -23,12 +23,20 @@ interface TextBlock {
   font_size: number
   confidence: number
   is_vertical: boolean
+  bubble_id: string | null
+}
+
+interface SpeechBubble {
+  id: string
+  bbox: BoundingBox
+  score: number
 }
 
 interface TextBlockEditorProps {
   pageId: string
   imageUrl: string
   textBlocks: TextBlock[]
+  speechBubbles?: SpeechBubble[]
   onSave: (blockId: string, updates: Partial<TextBlock>) => Promise<void>
   onDelete: (blockId: string) => Promise<void>
   onClose: () => void
@@ -38,6 +46,7 @@ export function TextBlockEditor({
   pageId,
   imageUrl,
   textBlocks,
+  speechBubbles = [],
   onSave,
   onDelete,
   onClose,
@@ -93,20 +102,84 @@ export function TextBlockEditor({
   const [scale, setScale] = useState(1)
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 })
 
-  // Calculate initial font size based on bbox dimensions
-  function calculateInitialFontSize(text: string, bbox: BoundingBox): number {
+  // Find the speech bubble for a text block
+  function findBubbleForBlock(blockId: string): SpeechBubble | null {
+    const block = localTextBlocks.find(b => b.id === blockId)
+    if (!block || !block.bubble_id) return null
+    return speechBubbles.find(b => b.id === block.bubble_id) || null
+  }
+
+  // Calculate initial font size based on bbox dimensions (preferably bubble bbox)
+  function calculateInitialFontSize(text: string, bbox: BoundingBox, isVertical: boolean = false, blockId?: string): number {
     if (!text) return 16
-    const charCount = text.length
-    const availableWidth = bbox.width * 0.85
-    const availableHeight = bbox.height * 0.85
 
-    // Very conservative initial estimate - ensure text fits well within bubble
-    let fontSize = Math.sqrt((bbox.width * bbox.height) / charCount) * 1.3
+    // Use bubble bbox if available, otherwise use text bbox
+    let targetBbox = bbox
+    if (blockId) {
+      const bubble = findBubbleForBlock(blockId)
+      if (bubble) {
+        targetBbox = bubble.bbox
+      }
+    }
 
-    // Clamp to reasonable range
-    fontSize = Math.max(8, Math.min(fontSize, 45))
+    // Create temporary canvas for accurate text measurement
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')!
 
-    return Math.floor(fontSize)
+    const maxWidth = targetBbox.width * 0.95
+    const maxHeight = targetBbox.height * 0.95
+
+    // Binary search for optimal font size
+    let minFont = 8
+    let maxFont = 120
+    let optimalFont = 16
+
+    while (minFont <= maxFont) {
+      const midFont = Math.floor((minFont + maxFont) / 2)
+      ctx.font = `${midFont}px "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "SimHei", Arial, sans-serif`
+
+      if (isVertical) {
+        // For vertical text, calculate total height needed
+        const charHeight = midFont * 1.1
+        const totalHeight = text.length * charHeight
+
+        if (totalHeight <= maxHeight) {
+          optimalFont = midFont
+          minFont = midFont + 1
+        } else {
+          maxFont = midFont - 1
+        }
+      } else {
+        // For horizontal text, calculate line wrapping and total height
+        const chars = text.split('')
+        const lines: string[] = []
+        let currentLine = ''
+
+        for (const char of chars) {
+          const testLine = currentLine + char
+          const metrics = ctx.measureText(testLine)
+          if (metrics.width > maxWidth && currentLine.length > 0) {
+            lines.push(currentLine)
+            currentLine = char
+          } else {
+            currentLine = testLine
+          }
+        }
+        if (currentLine) lines.push(currentLine)
+
+        const lineHeight = midFont * 1.2
+        const totalHeight = lines.length * lineHeight
+
+        if (totalHeight <= maxHeight) {
+          optimalFont = midFont
+          minFont = midFont + 1
+        } else {
+          maxFont = midFont - 1
+        }
+      }
+    }
+
+    return Math.max(8, Math.min(optimalFont, 120))
   }
 
   // Load image and draw on canvas
@@ -155,11 +228,11 @@ export function TextBlockEditor({
       const isMultiSelected = selectedBlocks.has(block.id)
       const bbox = block.bbox
       const displayText = block.translated_text || ''
+      const isVertical = block.is_vertical || false
       // Use stored font_size if valid, otherwise calculate from bbox and text
       const fontSize = block.font_size && block.font_size > 0
         ? block.font_size
-        : calculateInitialFontSize(displayText, bbox)
-      const isVertical = block.is_vertical || false
+        : calculateInitialFontSize(displayText, bbox, isVertical, block.id)
 
       // Scale bbox to canvas size
       const scaledBbox = {
@@ -241,9 +314,9 @@ export function TextBlockEditor({
         const y = scaledBbox.y + scaledBbox.height - handleSize / 2
 
         // Draw diagonal resize icon (↖ ↘)
-        ctx.strokeStyle = '#3b82f6'
-        ctx.fillStyle = '#3b82f6'
-        ctx.lineWidth = 2
+        ctx.strokeStyle = '#22c55e'
+        ctx.fillStyle = '#22c55e'
+        ctx.lineWidth = 3
 
         // Draw arrow lines
         const arrowSize = handleSize * 0.6
@@ -332,7 +405,7 @@ export function TextBlockEditor({
         // Regular single select
         // If font_size is 0 or missing, calculate initial value
         if (!block.font_size || block.font_size === 0) {
-          const initialFontSize = calculateInitialFontSize(block.translated_text || '', block.bbox)
+          const initialFontSize = calculateInitialFontSize(block.translated_text || '', block.bbox, block.is_vertical || false, block.id)
           updateLocalBlock(block.id, { font_size: initialFontSize })
         }
         setSelectedBlock(block)
@@ -401,7 +474,7 @@ export function TextBlockEditor({
     if (!selectedBlock || selectedBlock.id !== clickedBlock.id) {
       // Selecting a different block
       if (!clickedBlock.font_size || clickedBlock.font_size === 0) {
-        const initialFontSize = calculateInitialFontSize(clickedBlock.translated_text || '', clickedBlock.bbox)
+        const initialFontSize = calculateInitialFontSize(clickedBlock.translated_text || '', clickedBlock.bbox, clickedBlock.is_vertical || false, clickedBlock.id)
         updateLocalBlock(clickedBlock.id, { font_size: initialFontSize })
       }
       setSelectedBlock(clickedBlock)
@@ -619,9 +692,8 @@ export function TextBlockEditor({
       // Remove from local text blocks array
       setLocalTextBlocks(prev => prev.filter(b => !selectedBlocks.has(b.id)))
 
-      // Clear selection
+      // Clear selection but keep batch mode active
       setSelectedBlocks(new Set())
-      setIsMultiSelectMode(false)
     } catch (error) {
       console.error('Failed to batch delete:', error)
       alert('批量删除失败，请重试')
@@ -822,7 +894,15 @@ export function TextBlockEditor({
                     <textarea
                       id="translated-text"
                       value={selectedBlock.translated_text || ''}
-                      onChange={(e) => updateLocalBlock(selectedBlock.id, { translated_text: e.target.value })}
+                      onChange={(e) => {
+                        const newText = e.target.value
+                        // Recalculate optimal font size when text changes
+                        const optimalFontSize = calculateInitialFontSize(newText, selectedBlock.bbox, selectedBlock.is_vertical || false, selectedBlock.id)
+                        updateLocalBlock(selectedBlock.id, {
+                          translated_text: newText,
+                          font_size: optimalFontSize
+                        })
+                      }}
                       className="w-full min-h-[100px] p-2 border rounded mt-1 text-sm"
                       placeholder="输入译文..."
                     />

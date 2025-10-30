@@ -118,6 +118,32 @@ export interface Database {
           created_at?: string
         }
       }
+      speech_bubbles: {
+        Row: {
+          id: string
+          page_id: string
+          bbox: Json
+          contour: Json | null
+          score: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          page_id: string
+          bbox: Json
+          contour?: Json | null
+          score?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          page_id?: string
+          bbox?: Json
+          contour?: Json | null
+          score?: number
+          created_at?: string
+        }
+      }
       text_blocks: {
         Row: {
           id: string
@@ -131,6 +157,7 @@ export interface Database {
           font_size: number
           text_align: string
           is_vertical: boolean
+          bubble_id: string | null
           created_at: string
           updated_at: string
         }
@@ -146,6 +173,7 @@ export interface Database {
           font_size?: number
           text_align?: string
           is_vertical?: boolean
+          bubble_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -161,6 +189,7 @@ export interface Database {
           font_size?: number
           text_align?: string
           is_vertical?: boolean
+          bubble_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -341,6 +370,7 @@ export interface Database {
 export type Profile = Database['public']['Tables']['profiles']['Row']
 export type Project = Database['public']['Tables']['projects']['Row']
 export type Page = Database['public']['Tables']['pages']['Row']
+export type SpeechBubble = Database['public']['Tables']['speech_bubbles']['Row']
 export type TextBlock = Database['public']['Tables']['text_blocks']['Row']
 export type Job = Database['public']['Tables']['jobs']['Row']
 export type ReviewItem = Database['public']['Tables']['review_items']['Row']

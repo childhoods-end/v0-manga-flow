@@ -26,6 +26,7 @@ export default function ProjectPage() {
   const [translations, setTranslations] = useState<any>(null)
   const [editingPage, setEditingPage] = useState<any>(null)
   const [editingTextBlocks, setEditingTextBlocks] = useState<any[]>([])
+  const [editingSpeechBubbles, setEditingSpeechBubbles] = useState<any[]>([])
   const [loadingEditor, setLoadingEditor] = useState(false)
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const statusPollIntervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -353,6 +354,7 @@ export default function ProjectPage() {
       const data = await response.json()
       setEditingPage(page)
       setEditingTextBlocks(data.textBlocks || [])
+      setEditingSpeechBubbles(data.speechBubbles || [])
     } catch (err) {
       console.error('Failed to load text blocks:', err)
       alert('加载文本块失败')
@@ -406,6 +408,7 @@ export default function ProjectPage() {
   function handleCloseEditor() {
     setEditingPage(null)
     setEditingTextBlocks([])
+    setEditingSpeechBubbles([])
   }
 
   function wrapTextForCanvas(text: string, maxCharsPerLine: number): string[] {
@@ -894,6 +897,7 @@ export default function ProjectPage() {
           pageId={editingPage.id}
           imageUrl={editingPage.original_blob_url}
           textBlocks={editingTextBlocks}
+          speechBubbles={editingSpeechBubbles}
           onSave={handleSaveTextBlock}
           onDelete={handleDeleteTextBlock}
           onClose={handleCloseEditor}

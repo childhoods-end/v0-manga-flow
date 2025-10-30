@@ -4,6 +4,7 @@ import { translateBlocks, TranslationBlock } from '@/lib/translate'
 import { performOCR } from '@/lib/ocr'
 import { renderPage, renderPageSmart } from '@/lib/render'
 import { put } from '@vercel/blob'
+import { groupTextBlocksIntoBubbles, findBubbleForTextBlock } from '@/lib/bubbleDetectServer'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60 // Max duration on Vercel Pro plan
@@ -309,6 +310,20 @@ export async function POST(request: NextRequest) {
           stageTiming.translation = Date.now() - translateStartTime
         }
 
+        // Stage 3.5: Detect speech bubbles and save to database
+        console.log('\n💬 Stage 3.5: Detecting speech bubbles')
+        const bubbleDetectStartTime = Date.now()
+
+        // Group text blocks into bubbles based on proximity
+        const textBlocksWithIds = ocrResults.map((ocr, index) => ({
+          id: `temp-${index}`,
+          bbox: ocr.bbox
+        }))
+        const detectedBubbles = groupTextBlocksIntoBubbles(textBlocksWithIds)
+
+        stageTiming.bubbleDetect = Date.now() - bubbleDetectStartTime
+        console.log(`✅ Detected ${detectedBubbles.length} speech bubbles in ${stageTiming.bubbleDetect}ms`)
+
         // Save to database with estimated font size and orientation
         const textBlocksToInsert = ocrResults.map((ocr, index) => {
           // Estimate original font size from bbox height
@@ -328,27 +343,71 @@ export async function POST(request: NextRequest) {
           }
         })
 
-        // Stage 4: Save text blocks to database
+        // Stage 4: Save bubbles and text blocks to database
         console.log('\n💾 Stage 4: Saving to database')
         const saveStartTime = Date.now()
 
-        // Check if text blocks already exist for this page
+        // Check if data already exists for this page
         const { data: existingBlocks } = await supabaseAdmin
           .from('text_blocks')
           .select('id')
           .eq('page_id', page.id)
 
-        // Only insert if no existing blocks to avoid duplicates
-        if (!existingBlocks || existingBlocks.length === 0) {
-          await supabaseAdmin
-            .from('text_blocks')
-            .insert(textBlocksToInsert)
+        const { data: existingBubbles } = await supabaseAdmin
+          .from('speech_bubbles')
+          .select('id')
+          .eq('page_id', page.id)
 
-          stageTiming.save = Date.now() - saveStartTime
-          console.log(`✅ Saved ${textBlocksToInsert.length} text blocks in ${stageTiming.save}ms`)
+        // Only insert if no existing data to avoid duplicates
+        if ((!existingBlocks || existingBlocks.length === 0) && (!existingBubbles || existingBubbles.length === 0)) {
+          // First, insert speech bubbles
+          const bubblesData = detectedBubbles.map(bubble => ({
+            page_id: page.id,
+            bbox: bubble.bbox,
+            score: bubble.score
+          }))
+
+          const { data: insertedBubbles, error: bubbleError } = await supabaseAdmin
+            .from('speech_bubbles')
+            .insert(bubblesData)
+            .select('id, bbox')
+
+          if (bubbleError) {
+            console.error('❌ Failed to insert bubbles:', bubbleError)
+          } else {
+            console.log(`✅ Saved ${insertedBubbles?.length || 0} speech bubbles`)
+
+            // Then, insert text blocks with bubble_id references
+            const textBlocksWithBubbles = textBlocksToInsert.map((textBlock, index) => {
+              // Find which bubble this text block belongs to
+              const bubble = findBubbleForTextBlock(
+                textBlock.bbox as any,
+                insertedBubbles?.map((b, i) => ({
+                  id: b.id,
+                  bbox: b.bbox as any,
+                  score: detectedBubbles[i]?.score || 0,
+                  textBlockIds: []
+                })) || []
+              )
+
+              return {
+                ...textBlock,
+                bubble_id: insertedBubbles?.find(b =>
+                  JSON.stringify(b.bbox) === JSON.stringify(bubble?.bbox)
+                )?.id || null
+              }
+            })
+
+            await supabaseAdmin
+              .from('text_blocks')
+              .insert(textBlocksWithBubbles)
+
+            stageTiming.save = Date.now() - saveStartTime
+            console.log(`✅ Saved ${textBlocksWithBubbles.length} text blocks in ${stageTiming.save}ms`)
+          }
         } else {
           stageTiming.save = Date.now() - saveStartTime
-          console.log(`⏭️  Skipped insert - ${existingBlocks.length} text blocks already exist for page ${page.id}`)
+          console.log(`⏭️  Skipped insert - data already exists for page ${page.id}`)
         }
 
         // Stage 5: Render the translated page with timeout and retry
