@@ -4,6 +4,8 @@ export interface OCRResult {
   text: string
   confidence: number
   bbox: BoundingBox
+  fontSize?: number  // Estimated font size from OCR
+  orientation?: 'horizontal' | 'vertical'  // Text orientation
 }
 
 export interface OCRProvider {

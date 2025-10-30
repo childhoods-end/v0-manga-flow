@@ -61,6 +61,25 @@ export const tesseractProvider: OCRProvider = {
 }
 
 /**
+ * Estimate font size from bounding box dimensions
+ */
+function estimateFontSize(bbox: { width: number; height: number }, textLength: number): number {
+  // For horizontal text, height is a good indicator
+  // For vertical text, width is better
+  // Simple heuristic: use the smaller dimension and adjust by character count
+  const avgDimension = Math.sqrt(bbox.width * bbox.height / Math.max(textLength, 1))
+  return Math.max(8, Math.min(Math.round(avgDimension * 0.8), 120))
+}
+
+/**
+ * Detect text orientation based on bbox dimensions
+ */
+function detectOrientation(bbox: { width: number; height: number }): 'horizontal' | 'vertical' {
+  // If height > width significantly, likely vertical
+  return bbox.height > bbox.width * 1.5 ? 'vertical' : 'horizontal'
+}
+
+/**
  * Group nearby words into text blocks
  */
 function groupWordsIntoBlocks(words: OCRResult[]): OCRResult[] {
@@ -114,5 +133,10 @@ function groupWordsIntoBlocks(words: OCRResult[]): OCRResult[] {
     blocks.push(currentBlock)
   }
 
-  return blocks
+  // Add font size and orientation to each block
+  return blocks.map(block => ({
+    ...block,
+    fontSize: estimateFontSize(block.bbox, block.text.length),
+    orientation: detectOrientation(block.bbox)
+  }))
 }

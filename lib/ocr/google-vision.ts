@@ -52,16 +52,29 @@ export const googleVisionProvider: OCRProvider = {
         const maxX = Math.max(...vertices.map((v: any) => v.x || 0))
         const maxY = Math.max(...vertices.map((v: any) => v.y || 0))
 
+        const width = maxX - x
+        const height = maxY - y
+        const text = annotation.description
+
+        // Estimate font size from bbox
+        const avgDimension = Math.sqrt(width * height / Math.max(text.length, 1))
+        const fontSize = Math.max(8, Math.min(Math.round(avgDimension * 0.8), 120))
+
+        // Detect orientation
+        const orientation = height > width * 1.5 ? 'vertical' as const : 'horizontal' as const
+
         return {
-          text: annotation.description,
+          text,
           confidence: annotation.confidence || 0.9,
           bbox: {
             x,
             y,
-            width: maxX - x,
-            height: maxY - y,
+            width,
+            height,
             rotation: 0,
           },
+          fontSize,
+          orientation
         }
       })
 

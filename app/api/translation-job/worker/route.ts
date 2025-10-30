@@ -324,12 +324,14 @@ export async function POST(request: NextRequest) {
         stageTiming.bubbleDetect = Date.now() - bubbleDetectStartTime
         console.log(`✅ Detected ${detectedBubbles.length} speech bubbles in ${stageTiming.bubbleDetect}ms`)
 
-        // Save to database with estimated font size and orientation
+        // Save to database with OCR-detected font size and orientation
         const textBlocksToInsert = ocrResults.map((ocr, index) => {
-          // Estimate original font size from bbox height
-          const estimatedFontSize = ocr.orientation === 'vertical'
-            ? Math.round(ocr.bbox.width * 0.8) // Vertical text: use width
-            : Math.round(ocr.bbox.height * 0.65) // Horizontal text: use height
+          // Use font size from OCR if available, otherwise estimate from bbox
+          const fontSize = ocr.fontSize || (
+            ocr.orientation === 'vertical'
+              ? Math.round(ocr.bbox.width * 0.8) // Vertical text: use width
+              : Math.round(ocr.bbox.height * 0.65) // Horizontal text: use height
+          )
 
           return {
             page_id: page.id,
@@ -338,7 +340,7 @@ export async function POST(request: NextRequest) {
             translated_text: translations[index]?.translatedText || ocr.text,
             confidence: ocr.confidence,
             status: 'translated',
-            font_size: estimatedFontSize,
+            font_size: fontSize,  // Keep original font size for translated text
             text_orientation: ocr.orientation || 'horizontal',
           }
         })
