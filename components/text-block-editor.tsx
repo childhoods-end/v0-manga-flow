@@ -104,13 +104,17 @@ export function TextBlockEditor({
 
   // Simple fallback font size estimation based on text bbox
   // Only used when font_size is not already saved
+  // Matches the OCR estimation logic for consistency
   function estimateFontSize(bbox: BoundingBox, textLength: number, isVertical: boolean = false): number {
     if (isVertical) {
-      // For vertical text, use width as indicator
-      return Math.max(8, Math.min(Math.round(bbox.width * 0.8), 120))
+      // For vertical text, width is approximately the font size
+      const charHeight = bbox.height / Math.max(textLength, 1)
+      const fontSize = Math.min(bbox.width, charHeight) * 0.9
+      return Math.max(8, Math.min(Math.round(fontSize), 120))
     } else {
-      // For horizontal text, use height as indicator
-      return Math.max(8, Math.min(Math.round(bbox.height * 0.7), 120))
+      // For horizontal text, height is approximately the font size
+      const fontSize = bbox.height * 0.85
+      return Math.max(8, Math.min(Math.round(fontSize), 120))
     }
   }
 

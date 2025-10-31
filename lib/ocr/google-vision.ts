@@ -56,12 +56,20 @@ export const googleVisionProvider: OCRProvider = {
         const height = maxY - y
         const text = annotation.description
 
-        // Estimate font size from bbox
-        const avgDimension = Math.sqrt(width * height / Math.max(text.length, 1))
-        const fontSize = Math.max(8, Math.min(Math.round(avgDimension * 0.8), 120))
-
         // Detect orientation
         const orientation = height > width * 1.5 ? 'vertical' as const : 'horizontal' as const
+
+        // Estimate font size from bbox based on orientation
+        let fontSize: number
+        if (orientation === 'vertical') {
+          // For vertical text, width is approximately the font size
+          const charHeight = height / Math.max(text.length, 1)
+          fontSize = Math.min(width, charHeight) * 0.9
+        } else {
+          // For horizontal text, height is approximately the font size
+          fontSize = height * 0.85
+        }
+        fontSize = Math.max(8, Math.min(Math.round(fontSize), 120))
 
         return {
           text,
