@@ -102,20 +102,36 @@ export function TextBlockEditor({
   const [scale, setScale] = useState(1)
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 })
 
-  // Simple fallback font size estimation based on text bbox
-  // Only used when font_size is not already saved
-  // Matches the OCR estimation logic for consistency
-  function estimateFontSize(bbox: BoundingBox, textLength: number, isVertical: boolean = false): number {
+  // Find the speech bubble for a text block
+  function findBubbleForBlock(blockId: string): SpeechBubble | null {
+    const block = localTextBlocks.find(b => b.id === blockId)
+    if (!block || !block.bubble_id) return null
+    return speechBubbles.find(b => b.id === block.bubble_id) || null
+  }
+
+  // Calculate font size based on bubble or text bbox
+  // Prefers bubble bbox for more accurate fitting
+  function estimateFontSize(bbox: BoundingBox, textLength: number, isVertical: boolean = false, blockId?: string): number {
+    // Try to use bubble bbox if available
+    let bboxForCalc = bbox
+    if (blockId) {
+      const bubble = findBubbleForBlock(blockId)
+      if (bubble) {
+        bboxForCalc = bubble.bbox
+      }
+    }
+
     if (isVertical) {
-      // For vertical text, width is approximately the font size
-      const charHeight = bbox.height / Math.max(textLength, 1)
-      // Reduced coefficient from 0.9 to 0.7 to account for bbox padding
-      const fontSize = Math.min(bbox.width, charHeight) * 0.7
+      // For vertical text, use width
+      // Lower coefficient (0.5) for bubble, higher (0.7) for text bbox
+      const coef = bboxForCalc === bbox ? 0.7 : 0.5
+      const fontSize = bboxForCalc.width * coef
       return Math.max(8, Math.min(Math.round(fontSize), 120))
     } else {
-      // For horizontal text, height is approximately the font size
-      // Reduced coefficient from 0.85 to 0.65 to avoid oversized fonts
-      const fontSize = bbox.height * 0.65
+      // For horizontal text, use height
+      // Lower coefficient (0.45) for bubble, higher (0.65) for text bbox
+      const coef = bboxForCalc === bbox ? 0.65 : 0.45
+      const fontSize = bboxForCalc.height * coef
       return Math.max(8, Math.min(Math.round(fontSize), 120))
     }
   }
@@ -167,11 +183,11 @@ export function TextBlockEditor({
       const bbox = block.bbox
       const displayText = block.translated_text || ''
       const isVertical = block.is_vertical || false
-      // Always use stored font_size (from original OCR text)
+      // Always use stored font_size (calculated from bubble)
       // Only estimate if font_size is missing or invalid
       const fontSize = block.font_size && block.font_size > 0
         ? block.font_size
-        : estimateFontSize(bbox, displayText.length, isVertical)
+        : estimateFontSize(bbox, displayText.length, isVertical, block.id)
 
       // Scale bbox to canvas size
       const scaledBbox = {
@@ -342,9 +358,9 @@ export function TextBlockEditor({
         }
 
         // Regular single select
-        // If font_size is 0 or missing, estimate from bbox
+        // If font_size is 0 or missing, estimate from bubble/bbox
         if (!block.font_size || block.font_size === 0) {
-          const initialFontSize = estimateFontSize(block.bbox, (block.translated_text || '').length, block.is_vertical || false)
+          const initialFontSize = estimateFontSize(block.bbox, (block.translated_text || '').length, block.is_vertical || false, block.id)
           updateLocalBlock(block.id, { font_size: initialFontSize })
         }
         setSelectedBlock(block)
@@ -413,7 +429,7 @@ export function TextBlockEditor({
     if (!selectedBlock || selectedBlock.id !== clickedBlock.id) {
       // Selecting a different block
       if (!clickedBlock.font_size || clickedBlock.font_size === 0) {
-        const initialFontSize = estimateFontSize(clickedBlock.bbox, (clickedBlock.translated_text || '').length, clickedBlock.is_vertical || false)
+        const initialFontSize = estimateFontSize(clickedBlock.bbox, (clickedBlock.translated_text || '').length, clickedBlock.is_vertical || false, clickedBlock.id)
         updateLocalBlock(clickedBlock.id, { font_size: initialFontSize })
       }
       setSelectedBlock(clickedBlock)

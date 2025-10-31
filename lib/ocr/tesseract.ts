@@ -61,29 +61,6 @@ export const tesseractProvider: OCRProvider = {
 }
 
 /**
- * Estimate font size from bounding box dimensions
- */
-function estimateFontSize(bbox: { width: number; height: number }, textLength: number): number {
-  // Detect orientation first
-  const orientation = detectOrientation(bbox)
-
-  if (orientation === 'vertical') {
-    // For vertical text, the width is approximately the font size
-    // The height divided by character count gives average char height
-    const charHeight = bbox.height / Math.max(textLength, 1)
-    // Use the smaller of the two for safety, but prefer width
-    // Reduced coefficient from 0.9 to 0.7 to account for bbox padding
-    const fontSize = Math.min(bbox.width, charHeight) * 0.7
-    return Math.max(8, Math.min(Math.round(fontSize), 120))
-  } else {
-    // For horizontal text, the height is approximately the font size
-    // Reduced coefficient from 0.85 to 0.65 to avoid oversized fonts
-    const fontSize = bbox.height * 0.65
-    return Math.max(8, Math.min(Math.round(fontSize), 120))
-  }
-}
-
-/**
  * Detect text orientation based on bbox dimensions
  */
 function detectOrientation(bbox: { width: number; height: number }): 'horizontal' | 'vertical' {
@@ -145,10 +122,10 @@ function groupWordsIntoBlocks(words: OCRResult[]): OCRResult[] {
     blocks.push(currentBlock)
   }
 
-  // Add font size and orientation to each block
+  // Add orientation to each block
+  // Note: fontSize is now calculated based on speech bubble, not here
   return blocks.map(block => ({
     ...block,
-    fontSize: estimateFontSize(block.bbox, block.text.length),
     orientation: detectOrientation(block.bbox)
   }))
 }

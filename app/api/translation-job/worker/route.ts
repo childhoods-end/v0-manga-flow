@@ -324,14 +324,32 @@ export async function POST(request: NextRequest) {
         stageTiming.bubbleDetect = Date.now() - bubbleDetectStartTime
         console.log(`✅ Detected ${detectedBubbles.length} speech bubbles in ${stageTiming.bubbleDetect}ms`)
 
-        // Save to database with OCR-detected font size and orientation
+        // Calculate font size based on speech bubble size
+        // This ensures text fits within the actual bubble boundaries
         const textBlocksToInsert = ocrResults.map((ocr, index) => {
-          // Use font size from OCR if available, otherwise estimate from bbox
-          const fontSize = ocr.fontSize || (
-            ocr.orientation === 'vertical'
-              ? Math.round(ocr.bbox.width * 0.8) // Vertical text: use width
-              : Math.round(ocr.bbox.height * 0.65) // Horizontal text: use height
-          )
+          // Find which bubble this text block belongs to
+          const textBlockWithId = textBlocksWithIds[index]
+          const bubble = findBubbleForTextBlock(textBlockWithId.bbox as any, detectedBubbles)
+
+          // Use bubble bbox for font size calculation if available, otherwise use text bbox
+          const bboxForFont = bubble?.bbox || ocr.bbox
+          const isVertical = ocr.orientation === 'vertical'
+
+          // Calculate font size based on bubble dimensions
+          // Use more conservative coefficients since bubbles are larger than text
+          let fontSize: number
+          if (isVertical) {
+            // For vertical text, use bubble width
+            // Lower coefficient (0.5) because bubble includes padding
+            fontSize = Math.round(bboxForFont.width * 0.5)
+          } else {
+            // For horizontal text, use bubble height
+            // Lower coefficient (0.45) because bubble includes padding
+            fontSize = Math.round(bboxForFont.height * 0.45)
+          }
+
+          // Clamp font size to reasonable range
+          fontSize = Math.max(8, Math.min(fontSize, 120))
 
           return {
             page_id: page.id,
@@ -340,7 +358,7 @@ export async function POST(request: NextRequest) {
             translated_text: translations[index]?.translatedText || ocr.text,
             confidence: ocr.confidence,
             status: 'translated',
-            font_size: fontSize,  // Keep original font size for translated text
+            font_size: fontSize,  // Font size based on bubble dimensions
             text_orientation: ocr.orientation || 'horizontal',
           }
         })

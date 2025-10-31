@@ -59,20 +59,7 @@ export const googleVisionProvider: OCRProvider = {
         // Detect orientation
         const orientation = height > width * 1.5 ? 'vertical' as const : 'horizontal' as const
 
-        // Estimate font size from bbox based on orientation
-        let fontSize: number
-        if (orientation === 'vertical') {
-          // For vertical text, width is approximately the font size
-          const charHeight = height / Math.max(text.length, 1)
-          // Reduced coefficient from 0.9 to 0.7 to account for bbox padding
-          fontSize = Math.min(width, charHeight) * 0.7
-        } else {
-          // For horizontal text, height is approximately the font size
-          // Reduced coefficient from 0.85 to 0.65 to avoid oversized fonts
-          fontSize = height * 0.65
-        }
-        fontSize = Math.max(8, Math.min(Math.round(fontSize), 120))
-
+        // Note: fontSize is now calculated based on speech bubble, not here
         return {
           text,
           confidence: annotation.confidence || 0.9,
@@ -83,7 +70,6 @@ export const googleVisionProvider: OCRProvider = {
             height,
             rotation: 0,
           },
-          fontSize,
           orientation
         }
       })
