@@ -64,10 +64,12 @@ export const googleVisionProvider: OCRProvider = {
         if (orientation === 'vertical') {
           // For vertical text, width is approximately the font size
           const charHeight = height / Math.max(text.length, 1)
-          fontSize = Math.min(width, charHeight) * 0.9
+          // Reduced coefficient from 0.9 to 0.7 to account for bbox padding
+          fontSize = Math.min(width, charHeight) * 0.7
         } else {
           // For horizontal text, height is approximately the font size
-          fontSize = height * 0.85
+          // Reduced coefficient from 0.85 to 0.65 to avoid oversized fonts
+          fontSize = height * 0.65
         }
         fontSize = Math.max(8, Math.min(Math.round(fontSize), 120))
 

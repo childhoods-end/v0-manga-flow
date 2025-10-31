@@ -72,12 +72,13 @@ function estimateFontSize(bbox: { width: number; height: number }, textLength: n
     // The height divided by character count gives average char height
     const charHeight = bbox.height / Math.max(textLength, 1)
     // Use the smaller of the two for safety, but prefer width
-    const fontSize = Math.min(bbox.width, charHeight) * 0.9
+    // Reduced coefficient from 0.9 to 0.7 to account for bbox padding
+    const fontSize = Math.min(bbox.width, charHeight) * 0.7
     return Math.max(8, Math.min(Math.round(fontSize), 120))
   } else {
     // For horizontal text, the height is approximately the font size
-    // Account for line height (text rarely fills 100% of bbox height)
-    const fontSize = bbox.height * 0.85
+    // Reduced coefficient from 0.85 to 0.65 to avoid oversized fonts
+    const fontSize = bbox.height * 0.65
     return Math.max(8, Math.min(Math.round(fontSize), 120))
   }
 }
