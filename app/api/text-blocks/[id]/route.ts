@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
-import { renderPage } from '@/lib/render'
+import { renderPageSmart } from '@/lib/render'
 import { put } from '@vercel/blob'
 
 export const runtime = 'nodejs'
@@ -82,12 +82,24 @@ export async function PATCH(
           const imageBuffer = Buffer.from(await imageResponse.arrayBuffer())
           console.log('Image fetched, size:', imageBuffer.length)
 
-          // Render page with updated text
-          console.log('Starting render...')
-          const renderedBuffer = await renderPage(
+          // Render page with updated text using smart Canvas rendering for CJK support
+          console.log('Starting smart render...')
+          const renderedBuffer = await renderPageSmart(
             imageBuffer,
             allBlocks as any,
-            { maskOriginalText: true }
+            {
+              maskOriginalText: true,
+              maxFont: 36,
+              minFont: 10,
+              lineHeight: 1.45,
+              padding: 12,
+              textAlign: 'center',
+              verticalAlign: 'middle',
+              maxLines: 3,
+              overflowStrategy: 'ellipsis',
+              shadowBlur: 2,
+              lang: 'auto'
+            }
           )
           console.log('Render complete, size:', renderedBuffer.length)
 
@@ -216,11 +228,23 @@ export async function DELETE(
       }
       const imageBuffer = Buffer.from(await imageResponse.arrayBuffer())
 
-      // Render page with remaining text blocks
-      const renderedBuffer = await renderPage(
+      // Render page with remaining text blocks using smart Canvas rendering for CJK support
+      const renderedBuffer = await renderPageSmart(
         imageBuffer,
         allBlocks || [],
-        { maskOriginalText: true }
+        {
+          maskOriginalText: true,
+          maxFont: 36,
+          minFont: 10,
+          lineHeight: 1.45,
+          padding: 12,
+          textAlign: 'center',
+          verticalAlign: 'middle',
+          maxLines: 3,
+          overflowStrategy: 'ellipsis',
+          shadowBlur: 2,
+          lang: 'auto'
+        }
       )
 
       // Upload rendered image

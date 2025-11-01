@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
-import { renderPage } from '@/lib/render'
+import { renderPageSmart } from '@/lib/render'
 import { put } from '@vercel/blob'
 
 export const runtime = 'nodejs'
@@ -70,12 +70,24 @@ export async function POST(
     const imageBuffer = Buffer.from(await imageResponse.arrayBuffer())
     console.log(`[DEBUG] Image fetched, size: ${imageBuffer.length} bytes`)
 
-    // Render page
-    console.log('[DEBUG] Starting render...')
-    const renderedBuffer = await renderPage(
+    // Render page using smart Canvas rendering for CJK support
+    console.log('[DEBUG] Starting smart render...')
+    const renderedBuffer = await renderPageSmart(
       imageBuffer,
       translatedBlocks as any,
-      { maskOriginalText: true }
+      {
+        maskOriginalText: true,
+        maxFont: 36,
+        minFont: 10,
+        lineHeight: 1.45,
+        padding: 12,
+        textAlign: 'center',
+        verticalAlign: 'middle',
+        maxLines: 3,
+        overflowStrategy: 'ellipsis',
+        shadowBlur: 2,
+        lang: 'auto'
+      }
     )
     console.log(`[DEBUG] Render completed, size: ${renderedBuffer.length} bytes`)
 
