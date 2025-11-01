@@ -93,24 +93,65 @@ export async function renderPageSmart(
           ctx.fillText(chars[i], centerX, y)
         }
       } else {
-        // Horizontal text rendering using smart layout
-        const layoutOpts: LayoutOptions = {
-          fontFamily,
-          maxFont: options.maxFont || 36,
-          minFont: options.minFont || 10,
-          lineHeight: options.lineHeight || 1.45,
-          padding: options.padding || 12,
-          textAlign: options.textAlign || 'center',
-          verticalAlign: options.verticalAlign || 'middle',
-          maxLines: options.maxLines || 3,
-          overflowStrategy: options.overflowStrategy || 'ellipsis',
-          fillStyle: options.fillStyle || '#111',
-          shadowColor: options.shadowColor || 'rgba(255,255,255,0.9)',
-          shadowBlur: options.shadowBlur !== undefined ? options.shadowBlur : 2,
-          lang: options.lang || 'auto',
-        }
+        // Horizontal text rendering
+        // Use stored font_size if available, otherwise use smart layout
+        const storedFontSize = (block as any).font_size
 
-        drawTextInRect(ctx, text, bbox, layoutOpts)
+        if (storedFontSize && storedFontSize > 0) {
+          // Use the stored font size directly
+          ctx.font = `${storedFontSize}px ${fontFamily}`
+          ctx.fillStyle = options.fillStyle || '#000000'
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+
+          // Simple text wrapping and rendering
+          const lines: string[] = []
+          const words = text.split(/\s+/)
+          let currentLine = ''
+
+          for (const word of words) {
+            const testLine = currentLine ? currentLine + ' ' + word : word
+            const metrics = ctx.measureText(testLine)
+
+            if (metrics.width > bbox.width * 0.9 && currentLine) {
+              lines.push(currentLine)
+              currentLine = word
+            } else {
+              currentLine = testLine
+            }
+          }
+          if (currentLine) lines.push(currentLine)
+
+          const lineHeight = storedFontSize * 1.2
+          const totalHeight = lines.length * lineHeight
+          const startY = bbox.y + (bbox.height - totalHeight) / 2 + lineHeight / 2
+
+          lines.forEach((line, idx) => {
+            const y = startY + idx * lineHeight
+            ctx.fillText(line, bbox.x + bbox.width / 2, y)
+          })
+        } else {
+          // Use smart layout with reduced padding for small bboxes
+          const adaptivePadding = Math.min(options.padding || 12, Math.min(bbox.width, bbox.height) * 0.1)
+
+          const layoutOpts: LayoutOptions = {
+            fontFamily,
+            maxFont: options.maxFont || 100,
+            minFont: options.minFont || 6,
+            lineHeight: options.lineHeight || 1.2,
+            padding: adaptivePadding,
+            textAlign: options.textAlign || 'center',
+            verticalAlign: options.verticalAlign || 'middle',
+            maxLines: options.maxLines || 5,
+            overflowStrategy: options.overflowStrategy || 'ellipsis',
+            fillStyle: options.fillStyle || '#111',
+            shadowColor: options.shadowColor || 'rgba(255,255,255,0.9)',
+            shadowBlur: options.shadowBlur !== undefined ? options.shadowBlur : 2,
+            lang: options.lang || 'auto',
+          }
+
+          drawTextInRect(ctx, text, bbox, layoutOpts)
+        }
       }
     }
 
