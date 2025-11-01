@@ -54,13 +54,27 @@ export async function renderPageSmart(
     ctx.drawImage(image, 0, 0, width, height)
 
     // Apply text blocks with smart layout
+    logger.info({ totalBlocks: textBlocks.length }, 'Rendering text blocks')
+
     for (const block of textBlocks) {
       // Skip blocks without translated text
-      if (!block.translated_text || block.translated_text.trim() === '') continue
+      if (!block.translated_text || block.translated_text.trim() === '') {
+        logger.warn({ blockId: (block as any).id, hasText: !!block.translated_text }, 'Skipping block without text')
+        continue
+      }
 
       const { bbox } = block
       const text = block.translated_text
       const isVertical = (block as any).text_orientation === 'vertical'
+      const fontSize = (block as any).font_size
+
+      logger.info({
+        blockId: (block as any).id,
+        text: text.substring(0, 30),
+        bbox: { x: bbox.x, y: bbox.y, w: bbox.width, h: bbox.height },
+        fontSize,
+        isVertical,
+      }, 'Rendering text block')
 
       // If masking original text, draw background rectangle
       if (options.maskOriginalText) {
@@ -130,6 +144,12 @@ export async function renderPageSmart(
             const y = startY + idx * lineHeight
             ctx.fillText(line, bbox.x + bbox.width / 2, y)
           })
+
+          logger.info({
+            fontSize: storedFontSize,
+            linesCount: lines.length,
+            lines: lines.map(l => l.substring(0, 20)),
+          }, 'Rendered horizontal text with stored font size')
         } else {
           // Use smart layout with reduced padding for small bboxes
           const adaptivePadding = Math.min(options.padding || 12, Math.min(bbox.width, bbox.height) * 0.1)
