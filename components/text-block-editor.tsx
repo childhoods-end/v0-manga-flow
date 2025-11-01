@@ -490,7 +490,9 @@ export function TextBlockEditor({
     }
 
     // Handle selection rectangle dragging
-    if (isSelectionDragging && selectionRect) {
+    if (isSelectionDragging) {
+      if (!dragStart) return
+
       const width = x - dragStart.x
       const height = y - dragStart.y
 
@@ -544,40 +546,37 @@ export function TextBlockEditor({
   }
 
   function handleCanvasMouseUp() {
-    // Stop panning
-    if (isPanning) {
-      setIsPanning(false)
-      return
-    }
-
     // Handle selection rectangle completion
-    if (isSelectionDragging && selectionRect) {
-      // Find all blocks that intersect with selection rectangle
-      const selected = new Set<string>()
+    if (isSelectionDragging) {
+      if (selectionRect) {
+        // Find all blocks that intersect with selection rectangle
+        const selected = new Set<string>()
 
-      for (const block of localTextBlocks) {
-        const bbox = block.bbox
-        // Check if rectangles intersect
-        const intersects = !(
-          bbox.x + bbox.width < selectionRect.x ||
-          bbox.x > selectionRect.x + selectionRect.width ||
-          bbox.y + bbox.height < selectionRect.y ||
-          bbox.y > selectionRect.y + selectionRect.height
-        )
+        for (const block of localTextBlocks) {
+          const bbox = block.bbox
+          // Check if rectangles intersect
+          const intersects = !(
+            bbox.x + bbox.width < selectionRect.x ||
+            bbox.x > selectionRect.x + selectionRect.width ||
+            bbox.y + bbox.height < selectionRect.y ||
+            bbox.y > selectionRect.y + selectionRect.height
+          )
 
-        if (intersects) {
-          selected.add(block.id)
+          if (intersects) {
+            selected.add(block.id)
+          }
         }
-      }
 
-      setSelectedBlocks(selected)
-      setIsSelectionDragging(false)
+        setSelectedBlocks(selected)
+      }
       setSelectionRect(null)
-      return
     }
 
+    // Always reset all drag/interaction states on mouse up
     setIsDragging(false)
     setIsResizing(false)
+    setIsSelectionDragging(false)
+    setIsPanning(false)
   }
 
   async function handleSave() {
