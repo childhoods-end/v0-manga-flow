@@ -5,6 +5,7 @@ import { performOCR } from '@/lib/ocr'
 import { renderPage, renderPageSmart } from '@/lib/render'
 import { put } from '@vercel/blob'
 import { groupTextBlocksIntoBubbles, findBubbleForTextBlock } from '@/lib/bubbleDetectServer'
+import { detectBubblesFromBuffer, matchTextBlocksToBubbles } from '@/lib/bubbleDetectSharp'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60 // Max duration on Vercel Pro plan
@@ -310,19 +311,41 @@ export async function POST(request: NextRequest) {
           stageTiming.translation = Date.now() - translateStartTime
         }
 
-        // Stage 3.5: Detect speech bubbles and save to database
-        console.log('\n💬 Stage 3.5: Detecting speech bubbles')
+        // Stage 3.5: Detect speech bubbles using image analysis
+        console.log('\n💬 Stage 3.5: Detecting speech bubbles with image analysis')
         const bubbleDetectStartTime = Date.now()
 
-        // Group text blocks into bubbles based on proximity
+        // Use Sharp-based image analysis for accurate bubble detection
+        const detectedBubblesFromImage = await detectBubblesFromBuffer(imageBuffer)
+        console.log(`📊 Image analysis found ${detectedBubblesFromImage.length} candidate bubbles`)
+
+        // Fallback: If image analysis fails or finds no bubbles, use text clustering
+        let detectedBubbles
+        if (detectedBubblesFromImage.length === 0) {
+          console.log('⚠️  Image analysis found no bubbles, falling back to text clustering')
+          const textBlocksWithIds = ocrResults.map((ocr, index) => ({
+            id: `temp-${index}`,
+            bbox: ocr.bbox
+          }))
+          detectedBubbles = groupTextBlocksIntoBubbles(textBlocksWithIds)
+        } else {
+          // Convert image detection format to our bubble format
+          detectedBubbles = detectedBubblesFromImage.map(bubble => ({
+            id: bubble.id,
+            bbox: bubble.bbox,
+            score: bubble.score,
+            textBlockIds: [] // Will be filled when matching text blocks
+          }))
+        }
+
+        stageTiming.bubbleDetect = Date.now() - bubbleDetectStartTime
+        console.log(`✅ Detected ${detectedBubbles.length} speech bubbles in ${stageTiming.bubbleDetect}ms`)
+
+        // Create text block data with IDs for matching
         const textBlocksWithIds = ocrResults.map((ocr, index) => ({
           id: `temp-${index}`,
           bbox: ocr.bbox
         }))
-        const detectedBubbles = groupTextBlocksIntoBubbles(textBlocksWithIds)
-
-        stageTiming.bubbleDetect = Date.now() - bubbleDetectStartTime
-        console.log(`✅ Detected ${detectedBubbles.length} speech bubbles in ${stageTiming.bubbleDetect}ms`)
 
         // Calculate font size based on speech bubble size
         // This ensures text fits within the actual bubble boundaries
@@ -331,21 +354,24 @@ export async function POST(request: NextRequest) {
           const textBlockWithId = textBlocksWithIds[index]
           const bubble = findBubbleForTextBlock(textBlockWithId.bbox as any, detectedBubbles)
 
-          // Use bubble bbox for font size calculation if available, otherwise use text bbox
-          const bboxForFont = bubble?.bbox || ocr.bbox
           const isVertical = ocr.orientation === 'vertical'
-
-          // Calculate font size based on bubble dimensions
-          // Use more conservative coefficients since bubbles are larger than text
           let fontSize: number
-          if (isVertical) {
-            // For vertical text, use bubble width
-            // Lower coefficient (0.5) because bubble includes padding
-            fontSize = Math.round(bboxForFont.width * 0.5)
+
+          if (bubble) {
+            // Use actual detected bubble dimensions
+            // Image analysis provides real bubble boundaries, so use higher coefficients
+            if (isVertical) {
+              fontSize = Math.round(bubble.bbox.width * 0.6)
+            } else {
+              fontSize = Math.round(bubble.bbox.height * 0.55)
+            }
           } else {
-            // For horizontal text, use bubble height
-            // Lower coefficient (0.45) because bubble includes padding
-            fontSize = Math.round(bboxForFont.height * 0.45)
+            // Fallback: use text bbox if no bubble found
+            if (isVertical) {
+              fontSize = Math.round(ocr.bbox.width * 0.7)
+            } else {
+              fontSize = Math.round(ocr.bbox.height * 0.65)
+            }
           }
 
           // Clamp font size to reasonable range
