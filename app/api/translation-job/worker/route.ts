@@ -348,7 +348,7 @@ export async function POST(request: NextRequest) {
         }))
 
         // Calculate font size based on speech bubble size
-        // This ensures text fits within the actual bubble boundaries
+        // Use conservative coefficients to prevent text overflow
         const textBlocksToInsert = ocrResults.map((ocr, index) => {
           // Find which bubble this text block belongs to
           const textBlockWithId = textBlocksWithIds[index]
@@ -359,23 +359,24 @@ export async function POST(request: NextRequest) {
 
           if (bubble) {
             // Use actual detected bubble dimensions
-            // Image analysis provides real bubble boundaries, so use higher coefficients
             if (isVertical) {
-              fontSize = Math.round(bubble.bbox.width * 0.6)
+              // For vertical text: width determines character size
+              fontSize = Math.round(bubble.bbox.width * 0.25)
             } else {
-              fontSize = Math.round(bubble.bbox.height * 0.55)
+              // For horizontal text: height determines character size
+              fontSize = Math.round(bubble.bbox.height * 0.20)
             }
           } else {
-            // Fallback: use text bbox if no bubble found
+            // Fallback: use text bbox
             if (isVertical) {
-              fontSize = Math.round(ocr.bbox.width * 0.7)
+              fontSize = Math.round(ocr.bbox.width * 0.35)
             } else {
-              fontSize = Math.round(ocr.bbox.height * 0.65)
+              fontSize = Math.round(ocr.bbox.height * 0.30)
             }
           }
 
           // Clamp font size to reasonable range
-          fontSize = Math.max(8, Math.min(fontSize, 120))
+          fontSize = Math.max(6, Math.min(fontSize, 100))
 
           return {
             page_id: page.id,
@@ -384,7 +385,7 @@ export async function POST(request: NextRequest) {
             translated_text: translations[index]?.translatedText || ocr.text,
             confidence: ocr.confidence,
             status: 'translated',
-            font_size: fontSize,  // Font size based on bubble dimensions
+            font_size: fontSize,  // Conservative font size to fit in bubble
             text_orientation: ocr.orientation || 'horizontal',
           }
         })

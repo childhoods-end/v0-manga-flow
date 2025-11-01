@@ -110,30 +110,37 @@ export function TextBlockEditor({
   }
 
   // Calculate font size based on bubble or text bbox
-  // Prefers bubble bbox for more accurate fitting
+  // Use conservative coefficients to prevent text overflow
+  // This logic must match the backend calculation in worker/route.ts
   function estimateFontSize(bbox: BoundingBox, textLength: number, isVertical: boolean = false, blockId?: string): number {
-    // Try to use bubble bbox if available
-    let bboxForCalc = bbox
+    // Try to find the speech bubble for this text block
+    let bubble: SpeechBubble | null = null
     if (blockId) {
-      const bubble = findBubbleForBlock(blockId)
-      if (bubble) {
-        bboxForCalc = bubble.bbox
+      bubble = findBubbleForBlock(blockId)
+    }
+
+    let fontSize: number
+
+    if (bubble) {
+      // Use actual detected bubble dimensions
+      if (isVertical) {
+        // For vertical text: width determines character size
+        fontSize = Math.round(bubble.bbox.width * 0.25)
+      } else {
+        // For horizontal text: height determines character size
+        fontSize = Math.round(bubble.bbox.height * 0.20)
+      }
+    } else {
+      // Fallback: use text bbox
+      if (isVertical) {
+        fontSize = Math.round(bbox.width * 0.35)
+      } else {
+        fontSize = Math.round(bbox.height * 0.30)
       }
     }
 
-    if (isVertical) {
-      // For vertical text, use width
-      // Lower coefficient (0.5) for bubble, higher (0.7) for text bbox
-      const coef = bboxForCalc === bbox ? 0.7 : 0.5
-      const fontSize = bboxForCalc.width * coef
-      return Math.max(8, Math.min(Math.round(fontSize), 120))
-    } else {
-      // For horizontal text, use height
-      // Lower coefficient (0.45) for bubble, higher (0.65) for text bbox
-      const coef = bboxForCalc === bbox ? 0.65 : 0.45
-      const fontSize = bboxForCalc.height * coef
-      return Math.max(8, Math.min(Math.round(fontSize), 120))
-    }
+    // Clamp font size to reasonable range
+    return Math.max(6, Math.min(fontSize, 100))
   }
 
   // Load image and draw on canvas
