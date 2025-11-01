@@ -65,29 +65,53 @@ export async function renderPageSmart(
       // If masking original text, draw background rectangle
       if (options.maskOriginalText) {
         ctx.fillStyle = options.backgroundColor || 'rgba(255, 255, 255, 0.92)'
-        roundRect(ctx, bbox.x, bbox.y, bbox.width, bbox.height, 8)
-        ctx.fill()
+        ctx.fillRect(bbox.x, bbox.y, bbox.width, bbox.height)
       }
 
-      // Prepare layout options
-      const layoutOpts: LayoutOptions = {
-        fontFamily: options.fontFamily || 'system-ui, -apple-system, "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", sans-serif',
-        maxFont: options.maxFont || 36,
-        minFont: options.minFont || 10,
-        lineHeight: options.lineHeight || 1.45,
-        padding: options.padding || 12,
-        textAlign: options.textAlign || 'center',
-        verticalAlign: options.verticalAlign || 'middle',
-        maxLines: options.maxLines || 3,
-        overflowStrategy: options.overflowStrategy || 'ellipsis',
-        fillStyle: options.fillStyle || '#111',
-        shadowColor: options.shadowColor || 'rgba(255,255,255,0.9)',
-        shadowBlur: options.shadowBlur !== undefined ? options.shadowBlur : 2,
-        lang: options.lang || 'auto',
-      }
+      const fontFamily = options.fontFamily || 'system-ui, -apple-system, "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", sans-serif'
 
-      // Draw text with smart layout
-      drawTextInRect(ctx, text, bbox, layoutOpts)
+      if (isVertical) {
+        // Vertical text rendering (top to bottom)
+        // Use stored font_size if available, otherwise calculate from bbox
+        const fontSize = (block as any).font_size && (block as any).font_size > 0
+          ? (block as any).font_size
+          : Math.round(bbox.width * 0.35)
+
+        ctx.font = `${fontSize}px ${fontFamily}`
+        ctx.fillStyle = options.fillStyle || '#000000'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+
+        const chars = text.split('')
+        const charHeight = fontSize * 1.1
+        const totalHeight = chars.length * charHeight
+        const startY = bbox.y + (bbox.height - totalHeight) / 2 + charHeight / 2
+        const centerX = bbox.x + bbox.width / 2
+
+        for (let i = 0; i < chars.length; i++) {
+          const y = startY + i * charHeight
+          ctx.fillText(chars[i], centerX, y)
+        }
+      } else {
+        // Horizontal text rendering using smart layout
+        const layoutOpts: LayoutOptions = {
+          fontFamily,
+          maxFont: options.maxFont || 36,
+          minFont: options.minFont || 10,
+          lineHeight: options.lineHeight || 1.45,
+          padding: options.padding || 12,
+          textAlign: options.textAlign || 'center',
+          verticalAlign: options.verticalAlign || 'middle',
+          maxLines: options.maxLines || 3,
+          overflowStrategy: options.overflowStrategy || 'ellipsis',
+          fillStyle: options.fillStyle || '#111',
+          shadowColor: options.shadowColor || 'rgba(255,255,255,0.9)',
+          shadowBlur: options.shadowBlur !== undefined ? options.shadowBlur : 2,
+          lang: options.lang || 'auto',
+        }
+
+        drawTextInRect(ctx, text, bbox, layoutOpts)
+      }
     }
 
     // Convert canvas to buffer
