@@ -125,22 +125,22 @@ export function TextBlockEditor({
       // Use actual detected bubble dimensions
       if (isVertical) {
         // For vertical text: width determines character size
-        fontSize = Math.round(bubble.bbox.width * 0.25)
+        fontSize = Math.round(bubble.bbox.width * 0.45)
       } else {
         // For horizontal text: height determines character size
-        fontSize = Math.round(bubble.bbox.height * 0.20)
+        fontSize = Math.round(bubble.bbox.height * 0.40)
       }
     } else {
       // Fallback: use text bbox
       if (isVertical) {
-        fontSize = Math.round(bbox.width * 0.35)
+        fontSize = Math.round(bbox.width * 0.60)
       } else {
-        fontSize = Math.round(bbox.height * 0.30)
+        fontSize = Math.round(bbox.height * 0.50)
       }
     }
 
-    // Clamp font size to reasonable range
-    return Math.max(6, Math.min(fontSize, 100))
+    // Clamp font size to reasonable range (increased minimum to 10)
+    return Math.max(10, Math.min(fontSize, 100))
   }
 
   // Load image and draw on canvas
