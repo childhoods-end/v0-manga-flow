@@ -99,6 +99,7 @@ export function TextBlockEditor({
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const hasMouseMoved = useRef(false) // Track if mouse actually moved during interaction
   const [scale, setScale] = useState(1)
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 })
 
@@ -330,9 +331,9 @@ export function TextBlockEditor({
   }
 
   function handleCanvasClick(e: React.MouseEvent<HTMLCanvasElement>) {
-    // Skip if we were dragging/resizing or doing a drag selection or panning
-    if (isDragging || isResizing || isSelectionDragging || isPanning) {
-      console.log('[Click] Skipped due to drag state:', { isDragging, isResizing, isSelectionDragging, isPanning })
+    // Skip if mouse actually moved (was a drag, not a click)
+    if (hasMouseMoved.current) {
+      console.log('[Click] Skipped - mouse moved during interaction')
       return
     }
 
@@ -390,6 +391,9 @@ export function TextBlockEditor({
   function handleCanvasMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
     const canvas = canvasRef.current
     if (!canvas) return
+
+    // Reset movement tracking
+    hasMouseMoved.current = false
 
     const rect = canvas.getBoundingClientRect()
     const x = (e.clientX - rect.left) / scale - panOffset.x
@@ -486,6 +490,7 @@ export function TextBlockEditor({
 
     // Handle panning
     if (isPanning) {
+      hasMouseMoved.current = true // Mark as moved
       const dx = (e.clientX - panStart.x) / scale
       const dy = (e.clientY - panStart.y) / scale
       setPanOffset(prev => ({ x: prev.x + dx, y: prev.y + dy }))
@@ -495,6 +500,7 @@ export function TextBlockEditor({
 
     // Handle selection rectangle dragging
     if (isSelectionDragging) {
+      hasMouseMoved.current = true // Mark as moved
       if (!dragStart) return
 
       const width = x - dragStart.x
@@ -512,6 +518,7 @@ export function TextBlockEditor({
     if (!selectedBlock) return
 
     if (isDragging) {
+      hasMouseMoved.current = true // Mark as moved
       const newX = (e.clientX - dragStart.x) / scale
       const newY = (e.clientY - dragStart.y) / scale
 
@@ -523,6 +530,7 @@ export function TextBlockEditor({
 
       updateLocalBlock(selectedBlock.id, { bbox: newBbox })
     } else if (isResizing) {
+      hasMouseMoved.current = true // Mark as moved
       const deltaX = (e.clientX - dragStart.x) / scale
       const deltaY = (e.clientY - dragStart.y) / scale
 
@@ -550,7 +558,14 @@ export function TextBlockEditor({
   }
 
   function handleCanvasMouseUp() {
-    console.log('[MouseUp] State before reset:', { isDragging, isResizing, isSelectionDragging, isPanning, hasSelectionRect: !!selectionRect })
+    console.log('[MouseUp] State before reset:', {
+      isDragging,
+      isResizing,
+      isSelectionDragging,
+      isPanning,
+      hasSelectionRect: !!selectionRect,
+      hasMouseMoved: hasMouseMoved.current
+    })
 
     // Handle selection rectangle completion
     if (isSelectionDragging) {
