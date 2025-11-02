@@ -87,14 +87,19 @@ export async function renderPageSmart(
       if (isVertical) {
         // Vertical text rendering (top to bottom)
         // Use stored font_size if available, otherwise calculate from bbox
-        const fontSize = (block as any).font_size && (block as any).font_size > 0
+        const rawFontSize = (block as any).font_size && (block as any).font_size > 0
           ? (block as any).font_size
           : Math.round(bbox.width * 0.35)
+
+        // Apply minimum font size safety check
+        const fontSize = Math.max(8, rawFontSize)
 
         ctx.font = `${fontSize}px ${fontFamily}`
         ctx.fillStyle = options.fillStyle || '#000000'
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
+
+        logger.info({ rawFontSize, fontSize }, 'Rendering vertical text')
 
         const chars = text.split('')
         const charHeight = fontSize * 1.1
@@ -106,17 +111,22 @@ export async function renderPageSmart(
           const y = startY + i * charHeight
           ctx.fillText(chars[i], centerX, y)
         }
+
+        logger.info({ charsCount: chars.length }, 'Rendered vertical text')
       } else {
         // Horizontal text rendering
         // Use stored font_size if available, otherwise use smart layout
         const storedFontSize = (block as any).font_size
 
         if (storedFontSize && storedFontSize > 0) {
-          // Use the stored font size directly
-          ctx.font = `${storedFontSize}px ${fontFamily}`
+          // Use the stored font size directly, with minimum safety check
+          const safeFontSize = Math.max(8, storedFontSize)
+          ctx.font = `${safeFontSize}px ${fontFamily}`
           ctx.fillStyle = options.fillStyle || '#000000'
           ctx.textAlign = 'center'
           ctx.textBaseline = 'middle'
+
+          logger.info({ storedFontSize, safeFontSize }, 'Using stored font size')
 
           // Simple text wrapping and rendering
           const lines: string[] = []
@@ -136,7 +146,7 @@ export async function renderPageSmart(
           }
           if (currentLine) lines.push(currentLine)
 
-          const lineHeight = storedFontSize * 1.2
+          const lineHeight = safeFontSize * 1.2
           const totalHeight = lines.length * lineHeight
           const startY = bbox.y + (bbox.height - totalHeight) / 2 + lineHeight / 2
 
@@ -146,7 +156,8 @@ export async function renderPageSmart(
           })
 
           logger.info({
-            fontSize: storedFontSize,
+            storedFontSize,
+            safeFontSize,
             linesCount: lines.length,
             lines: lines.map(l => l.substring(0, 20)),
           }, 'Rendered horizontal text with stored font size')
