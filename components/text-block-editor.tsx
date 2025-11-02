@@ -331,7 +331,10 @@ export function TextBlockEditor({
 
   function handleCanvasClick(e: React.MouseEvent<HTMLCanvasElement>) {
     // Skip if we were dragging/resizing or doing a drag selection or panning
-    if (isDragging || isResizing || isSelectionDragging || isPanning) return
+    if (isDragging || isResizing || isSelectionDragging || isPanning) {
+      console.log('[Click] Skipped due to drag state:', { isDragging, isResizing, isSelectionDragging, isPanning })
+      return
+    }
 
     const canvas = canvasRef.current
     if (!canvas) return
@@ -365,6 +368,7 @@ export function TextBlockEditor({
         }
 
         // Regular single select
+        console.log('[Click] Selected block:', block.id)
         // If font_size is 0 or missing, estimate from bubble/bbox
         if (!block.font_size || block.font_size === 0) {
           const initialFontSize = estimateFontSize(block.bbox, (block.translated_text || '').length, block.is_vertical || false, block.id)
@@ -546,6 +550,8 @@ export function TextBlockEditor({
   }
 
   function handleCanvasMouseUp() {
+    console.log('[MouseUp] State before reset:', { isDragging, isResizing, isSelectionDragging, isPanning, hasSelectionRect: !!selectionRect })
+
     // Handle selection rectangle completion
     if (isSelectionDragging) {
       if (selectionRect) {
