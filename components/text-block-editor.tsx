@@ -401,6 +401,7 @@ export function TextBlockEditor({
 
     // If spacebar is pressed, start panning
     if (isSpacePressed) {
+      e.preventDefault() // Prevent page scroll
       setIsPanning(true)
       setPanStart({ x: e.clientX, y: e.clientY })
       return
@@ -418,6 +419,7 @@ export function TextBlockEditor({
 
     // If clicking on empty area, start drag selection (works in both modes)
     if (!clickedBlock) {
+      e.preventDefault() // Prevent page scroll during drag selection
       setIsSelectionDragging(true)
       setDragStart({ x, y })
       setSelectionRect({ x, y, width: 0, height: 0 })
